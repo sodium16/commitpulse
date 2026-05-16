@@ -216,6 +216,7 @@ Fixes # (issue number)
 - [ ] I have started the repo.
 - [ ] I have made sure that i have only one commit to merge in this PR.
 - [ ] The SVG output matches the CommitPulse "premium quality" aesthetic standard (no raw elements, smooth animations, correct fonts).
+- [ ] (Recommended) I joined the CommitPulse Discord server for faster collaboration, mentorship, and PR support.
 ```
 
 > **PRs without a visual preview for any SVG-touching changes will be asked for one before review.**
