@@ -316,6 +316,52 @@ describe('fetchGitHubContributions', () => {
     );
   });
 
+  // GitHub GraphQL returns HTTP 200 for rate limit errors — the error lives in the body.
+  // fetchGraphQLWithRetry must detect it and back off, not crash immediately.
+  describe('body-level RATE_LIMITED retry (HTTP 200)', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('retries with backoff when GitHub returns RATE_LIMITED inside a 200 OK body', async () => {
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(
+          mockResponse({ errors: [{ type: 'RATE_LIMITED', message: 'API rate limit exceeded' }] })
+        )
+        .mockResolvedValueOnce(
+          mockResponse({
+            data: { user: { contributionsCollection: { contributionCalendar: mockCalendar } } },
+          })
+        );
+
+      const promise = fetchGitHubContributions('octocat');
+      await vi.advanceTimersByTimeAsync(500);
+      const result = await promise;
+
+      expect(fetch).toHaveBeenCalledTimes(2);
+      expect(result.totalContributions).toBe(mockCalendar.totalContributions);
+    });
+
+    it('throws after exhausting all retries on repeated body-level RATE_LIMITED errors', async () => {
+      vi.mocked(fetch).mockResolvedValue(
+        mockResponse({ errors: [{ type: 'RATE_LIMITED', message: 'API rate limit exceeded' }] })
+      );
+
+      const promise = fetchGitHubContributions('octocat');
+      // Register the rejection handler before advancing timers so the rejection
+      // is never "unhandled" during the timer callbacks.
+      const assertion = expect(promise).rejects.toThrow('API Rate Limit Exceeded');
+      // 500ms + 1000ms + 2000ms covers all 3 retry delays before attempt >= MAX_RETRIES
+      await vi.advanceTimersByTimeAsync(3500);
+      await assertion;
+      expect(fetch).toHaveBeenCalledTimes(4);
+    });
+  });
+
   it('throws a descriptive "user not found" error when the username does not exist on GitHub', async () => {
     vi.mocked(fetch).mockResolvedValue(mockResponse({ data: { user: null } }));
 

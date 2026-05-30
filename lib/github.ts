@@ -13,6 +13,7 @@ interface GitHubRepo {
 
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 500;
+const MAX_RETRY_DELAY_MS = 5000;
 const GRAPHQL_TIMEOUT_MS = 8000; // 8s for GraphQL endpoint
 const REST_TIMEOUT_MS = 5000; // 5s for REST endpoints
 
@@ -88,7 +89,7 @@ export async function fetchWithRetry(
 
     // If the delay is too long (e.g., > 5 seconds), it's a hard limit.
     // Return immediately to avoid serverless function timeouts.
-    if (delay > 5000) {
+    if (delay > MAX_RETRY_DELAY_MS) {
       return res;
     }
 
@@ -103,6 +104,38 @@ export async function fetchWithRetry(
   const delay = BASE_DELAY_MS * Math.pow(2, attempt);
   await new Promise((resolve) => setTimeout(resolve, delay));
   return fetchWithRetry(url, options, attempt + 1, timeoutMs);
+}
+
+// Wraps fetchWithRetry to also retry on GraphQL-level RATE_LIMITED errors
+// that GitHub returns with HTTP 200 OK instead of 429.
+async function fetchGraphQLWithRetry(
+  url: string | URL,
+  options: RequestInit,
+  attempt = 0,
+  timeoutMs?: number
+): Promise<Response> {
+  const res = await fetchWithRetry(url, options, attempt, timeoutMs);
+  if (!res.ok || attempt >= MAX_RETRIES) return res;
+
+  const body: unknown = await res
+    .clone()
+    .json()
+    .catch(() => null);
+  const isBodyRateLimited =
+    Array.isArray((body as { errors?: unknown })?.errors) &&
+    (body as { errors: unknown[] }).errors.some(
+      (e) =>
+        (e as { type?: string })?.type === 'RATE_LIMITED' ||
+        (e as { message?: string })?.message?.toLowerCase().includes('rate limit')
+    );
+
+  if (!isBodyRateLimited) return res;
+
+  const delay = BASE_DELAY_MS * Math.pow(2, attempt);
+  if (delay > MAX_RETRY_DELAY_MS) return res;
+
+  await new Promise((resolve) => setTimeout(resolve, delay));
+  return fetchGraphQLWithRetry(url, options, attempt + 1, timeoutMs);
 }
 
 const GITHUB_GRAPHQL_URL = 'https://api.github.com/graphql';
@@ -298,7 +331,7 @@ export async function fetchGitHubContributions(
       }
     `;
 
-    const res = await fetchWithRetry(GITHUB_GRAPHQL_URL, {
+    const res = await fetchGraphQLWithRetry(GITHUB_GRAPHQL_URL, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify({
