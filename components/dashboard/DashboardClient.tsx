@@ -21,6 +21,7 @@ import RepositoryGraph from './RepositoryGraph';
 import ComparisonStatsCard from './ComparisonStatsCard';
 import RadarChart from './RadarChart';
 import GrowthTrendChart from './GrowthTrendChart';
+import ResumeProfileSection from './ResumeProfileSection';
 
 // Define the dashboard data structure
 interface DashboardData {
@@ -531,6 +532,7 @@ export default function DashboardClient({ initialData, username }: DashboardClie
               }}
             />
             <Achievements achievements={initialData.achievements} />
+            <ResumeProfileSection githubUsername={username} />
           </aside>
 
           {/* Main Content */}
