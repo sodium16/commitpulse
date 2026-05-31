@@ -717,11 +717,11 @@ describe('streakParamsSchema — view fallback behavior', () => {
 });
 
 describe('streakParamsSchema — accent parameter HEX color validation', () => {
-  it('rejects an invalid hex color like "#ZZZZZZZ" for accent', () => {
-    // #ZZZZZZZ contains non-hex characters — must fail schema validation
+  it('rejects an invalid hex color like "#ZZZZZZ" for accent', () => {
+    // #ZZZZZZ contains non-hex characters — must fail schema validation
     const result = streakParamsSchema.safeParse({
       user: 'octocat',
-      accent: '#ZZZZZZZ',
+      accent: '#ZZZZZZ',
     });
 
     expect(result.success).toBe(false);

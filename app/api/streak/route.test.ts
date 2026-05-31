@@ -722,9 +722,10 @@ describe('GET /api/streak', () => {
 
       expect(response.status).toBe(400);
     });
+
     it('returns 400 when an invalid hex color is passed as accent', async () => {
-      // #ZZZZZZZ contains non-hex characters — schema must reject it with 400
-      const response = await GET(makeRequest({ user: 'octocat', accent: '#ZZZZZZZ' }));
+      // #ZZZZZZ contains non-hex characters — schema must reject it with 400
+      const response = await GET(makeRequest({ user: 'octocat', accent: '#ZZZZZZ' }));
 
       expect(response.status).toBe(400);
     });
