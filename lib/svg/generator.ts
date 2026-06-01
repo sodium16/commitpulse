@@ -523,8 +523,16 @@ function renderFooter(
   const s = createScaler(sf);
   return `
   ${!params.hide_stats ? renderStatsSection(stats, labels, s, params) : ''}
-  ${!params.hide_title ? `<text x="${s(300)}" y="${s(50)}" text-anchor="middle" class="title">${truncateUsername(safeUser).toUpperCase()}</text>` : ''}
-  ${renderRadarScan(params.speed || '8s', sf, accent, false)}`;
+  ${!params.hide_title ? `<text x="${s(300)}" y="${s(50)}" text-anchor="middle" class="title">${truncateUsername(safeUser).toUpperCase()}${params.isOfflineFallback ? '<tspan fill="#ff9f43" font-size="10px" font-weight="bold"> [STALE CACHE]</tspan>' : ''}</text>` : ''}
+  <rect
+    x="${s(100)}"
+    y="${s(80)}"
+    width="${s(400)}"
+    height="${s(1)}"
+    class="cp-accent-fill scan-line"
+    fill-opacity="0.3"
+    style="--scan-speed: ${params.speed || '8s'}; --scan-start: ${s(0)}px; --scan-end: ${s(240)}px;"
+  />`;
 }
 
 const MONTH_NAMES = [
@@ -711,7 +719,6 @@ function generateAutoThemeSVG(
   const sf = getSizeScale(params.size);
   const radius = sanitizeRadius(params.radius, 8) * sf;
   const labels = getLabels(params.lang);
-  const animate = params.animate ?? true;
   const W = Math.round(SVG_WIDTH * sf);
   const H = Math.round(SVG_HEIGHT * sf);
   const towerData = scaleTowerData(
@@ -778,7 +785,7 @@ function generateAutoThemeSVG(
   ${!params.hide_stats ? renderStatsSection(stats, labels, s, params) : ''}
 ${
   !params.hide_title
-    ? `<text x="${s(300)}" y="${s(50)}" text-anchor="middle" class="title">${truncateUsername(safeUser).toUpperCase()}</text>`
+    ? `<text x="${s(300)}" y="${s(50)}" text-anchor="middle" class="title">${truncateUsername(safeUser).toUpperCase()}${params.isOfflineFallback ? '<tspan fill="#ff9f43" font-size="10px" font-weight="bold"> [STALE CACHE]</tspan>' : ''}</text>`
     : ''
 }
 ${renderRadarScan(params.speed || '8s', sf, '', true)}
@@ -1459,9 +1466,6 @@ export function generateHeatmapSVG(
   const borderAttr = params.border ? `stroke="#${params.border}" stroke-width="2"` : '';
 
   const sanitizedFont = sanitizeFont(params.font);
-  const predefinedFont = sanitizedFont
-    ? (FONT_MAP[sanitizedFont.toLowerCase() as keyof typeof FONT_MAP] ?? null)
-    : null;
   const selectedFont = resolveFont(sanitizedFont);
   const isPredefinedFont = sanitizedFont
     ? Boolean(FONT_MAP[sanitizedFont.toLowerCase() as keyof typeof FONT_MAP])
@@ -1552,7 +1556,7 @@ export function generateHeatmapSVG(
 
   <rect width="${W}" height="${H}" rx="${radius}" fill="${params.hideBackground ? 'transparent' : bg}" ${borderAttr} />
 
-  ${!params.hide_title ? `<text x="${s(60)}" y="${s(30)}" class="hm-title">${truncateUsername(safeUser).toUpperCase()}</text>` : ''}
+  ${!params.hide_title ? `<text x="${s(60)}" y="${s(30)}" class="hm-title">${truncateUsername(safeUser).toUpperCase()}${params.isOfflineFallback ? '<tspan fill="#ff9f43" font-size="10px" font-weight="bold"> [STALE CACHE]</tspan>' : ''}</text>` : ''}
 
   ${grid}
 
@@ -1685,7 +1689,7 @@ function generateAutoThemeHeatmapSVG(
 
   <rect width="${W}" height="${H}" rx="${radius}" ${params.hideBackground ? 'fill="transparent"' : 'class="cp-bg-fill"'} />
 
-  ${!params.hide_title ? `<text x="${s(60)}" y="${s(30)}" class="hm-title">${truncateUsername(safeUser).toUpperCase()}</text>` : ''}
+  ${!params.hide_title ? `<text x="${s(60)}" y="${s(30)}" class="hm-title">${truncateUsername(safeUser).toUpperCase()}${params.isOfflineFallback ? '<tspan fill="#ff9f43" font-size="10px" font-weight="bold"> [STALE CACHE]</tspan>' : ''}</text>` : ''}
 
   ${grid}
 
@@ -2327,7 +2331,7 @@ export function generatePulseSVG(
   <line x1="${paddingX}" y1="${paddingYTop}" x2="${width - paddingX}" y2="${paddingYTop}" stroke="${text}" stroke-width="0.75" stroke-opacity="0.05" />
   <line x1="${paddingX}" y1="${paddingYTop + graphHeight}" x2="${width - paddingX}" y2="${paddingYTop + graphHeight}" stroke="${text}" stroke-width="0.75" stroke-opacity="0.05" />
 
-  ${!params.hide_title ? `<text x="30" y="38" class="title">${safeUser.toUpperCase()}</text>` : ''}
+  ${!params.hide_title ? `<text x="30" y="38" class="title">${safeUser.toUpperCase()}${params.isOfflineFallback ? '<tspan fill="#ff9f43" font-size="10px" font-weight="bold"> [STALE CACHE]</tspan>' : ''}</text>` : ''}
   ${
     !params.hide_stats
       ? `
@@ -2520,7 +2524,7 @@ function generateAutoThemePulseSVG(
   <line x1="${paddingX}" y1="${paddingYTop}" x2="${width - paddingX}" y2="${paddingYTop}" stroke="var(--cp-text)" stroke-width="0.75" stroke-opacity="0.05" />
   <line x1="${paddingX}" y1="${paddingYTop + graphHeight}" x2="${width - paddingX}" y2="${paddingYTop + graphHeight}" stroke="var(--cp-text)" stroke-width="0.75" stroke-opacity="0.05" />
 
-  ${!params.hide_title ? `<text x="30" y="38" class="title">${safeUser.toUpperCase()}</text>` : ''}
+  ${!params.hide_title ? `<text x="30" y="38" class="title">${safeUser.toUpperCase()}${params.isOfflineFallback ? '<tspan fill="#ff9f43" font-size="10px" font-weight="bold"> [STALE CACHE]</tspan>' : ''}</text>` : ''}
   ${
     !params.hide_stats
       ? `

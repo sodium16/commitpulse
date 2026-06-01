@@ -149,27 +149,55 @@ describe('User Model', () => {
       const collectionWrapper = User.collection as unknown as { queue: unknown[] };
       expect(collectionWrapper.queue.length).toBe(0);
     });
-  });
 
-  describe('Database Connection State 99 Handling', () => {
-    it('triggers a lazy initialization fallback for database operations when uninitialized', async () => {
-      const { vi } = await import('vitest');
+    it('handles connection failure while connecting without leaving operations stuck', async (): Promise<void> => {
+      let currentReadyState = 2;
 
-      const readyStateSpy = vi
+      readyStateSpy = vi
         .spyOn(mongoose.connection, 'readyState', 'get')
-        .mockReturnValue(99 as unknown as typeof mongoose.connection.readyState);
+        .mockImplementation(() => currentReadyState as typeof mongoose.connection.readyState);
 
-      expect(mongoose.connection.readyState).toBe(99);
+      expect(mongoose.connection.readyState).toBe(2);
 
-      const fallbackUser = { username: 'buffered_user' };
-      const findOneSpy = vi.spyOn(User, 'findOne').mockResolvedValue(fallbackUser as never);
+      const connectionError = new Error('Database connection lost');
+      connectionError.name = 'ConnectionError';
 
-      const result = await User.findOne({ username: 'buffered_user' });
-      expect(result).toEqual(fallbackUser);
-      expect(findOneSpy).toHaveBeenCalledTimes(1);
+      const findOneSpy = vi.spyOn(User, 'findOne').mockRejectedValue(connectionError);
 
-      readyStateSpy.mockRestore();
+      // Simulate connection dropping before it becomes connected
+      currentReadyState = 0;
+
+      expect(mongoose.connection.readyState).toBe(0);
+
+      await expect(User.findOne({ username: 'failure-user' })).rejects.toThrow(
+        'Database connection lost'
+      );
+
+      await expect(User.findOne({ username: 'failure-user' })).rejects.toMatchObject({
+        name: 'ConnectionError',
+      });
+
       findOneSpy.mockRestore();
+    });
+
+    it('times out cleanly when the connection remains stuck in state 2 too long', async (): Promise<void> => {
+      readyStateSpy = vi
+        .spyOn(mongoose.connection, 'readyState', 'get')
+        .mockReturnValue(2 as unknown as typeof mongoose.connection.readyState);
+
+      expect(mongoose.connection.readyState).toBe(2);
+
+      const query = User.findOne({ username: 'timeout-user' }).exec();
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Connection timeout: state 2 did not resolve')), 50)
+      );
+
+      await expect(Promise.race([query, timeoutPromise])).rejects.toThrow(
+        'Connection timeout: state 2 did not resolve'
+      );
+
+      query.catch(() => undefined);
     });
   });
 
@@ -266,7 +294,7 @@ describe('User Model', () => {
     });
   });
 
-  describe('Database Connection State 99 Handling (Lazy Initialization Tracking)', () => {
+  describe('Database Connection State 99 Handling', () => {
     it('triggers lazy initialization exactly once and uses the correct connection URI', async (): Promise<void> => {
       const readyStateSpy = vi
         .spyOn(mongoose.connection, 'readyState', 'get')
@@ -289,20 +317,6 @@ describe('User Model', () => {
 
       readyStateSpy.mockRestore();
       connectSpy.mockRestore();
-    });
-  });
-
-  describe('Database Connection State 1 Handling', () => {
-    it('keeps the User model usable while mongoose is connected', async (): Promise<void> => {
-      const readyStateSpy = vi
-        .spyOn(mongoose.connection, 'readyState', 'get')
-        .mockReturnValue(1 as unknown as typeof mongoose.connection.readyState);
-
-      expect(mongoose.connection.readyState).toBe(1);
-      expect(User).toBeDefined();
-      expect(User.modelName).toBe('User');
-
-      readyStateSpy.mockRestore();
     });
   });
 });
