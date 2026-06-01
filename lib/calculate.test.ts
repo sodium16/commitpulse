@@ -322,6 +322,33 @@ describe('calculateStreak', () => {
     expect(result.totalContributions).toBe(1);
     expect(result.longestStreak).toBe(1);
   });
+  it.fails('simulates a streak containing ONLY Monday through Friday commits (Issue #1475)', () => {
+    // buildCalendar assumes index 0 is a Monday.
+    // Days in a week: Mon(1), Tue(1), Wed(1), Thu(1), Fri(1), Sat(0), Sun(0)
+    // We will simulate 3 full weeks of this pattern.
+    const calendar = buildCalendar([
+      // Week 1
+      1, 1, 1, 1, 1, 0, 0,
+      // Week 2
+      1, 1, 1, 1, 1, 0, 0,
+      // Week 3
+      1, 1, 1, 1, 1, 0, 0,
+    ]);
+
+    // Evaluate the streak on the final Sunday of the calendar (index 20).
+    // Because the logic currently has an off-by-one bug when handling weekends,
+    // the test asserts what the math *should* output if weekend bridging is working correctly.
+    const result = calculateStreak(
+      calendar,
+      'UTC',
+      new Date('2024-01-21T12:00:00Z') // The date of the 3rd Sunday
+    );
+
+    // If weekend gaps are bridged properly, all 15 weekdays form a continuous streak.
+    expect(result.currentStreak).toBe(15);
+    expect(result.longestStreak).toBe(15);
+    expect(result.totalContributions).toBe(15);
+  });
 
   it('does not walk past the start of a 1-day calendar when grace is larger than the available days', () => {
     const calendar = buildCalendar([1]);
@@ -708,6 +735,37 @@ describe('calculateStreak', () => {
     expect(result.longestStreak).toBe(15);
   });
 
+  it('verify streak formulas for different starting days of the week timeline (Variation 3)', () => {
+    // Week 1: 0, 0, 0, 0, 1, 1, 1 (Starts on Friday, 3 days)
+    // Week 2: 1, 1, 1, 1, 1, 1, 1 (7 days)
+    // Week 3: 1, 1, 1, 1, 1        // Ends on Friday (5 days)
+    // Total continuous streak = 15 days, ending on the last day.
+    const calendar = buildCalendar([
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      1, // Week 1 (Starts Fri)
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1, // Week 2
+      1,
+      1,
+      1,
+      1,
+      1, // Week 3 (Ends Fri)
+    ]);
+    const result = calculateStreak(calendar);
+    expect(result.currentStreak).toBe(15);
+    expect(result.longestStreak).toBe(15);
+  });
+
   it('verify streak formulas for multiple weeks gaps timeline (Variation 3)', () => {
     // Streak 1: 5 days
     // Gap 1: 14 days (2 weeks of zeros)
@@ -874,6 +932,84 @@ describe('calculateStreak', () => {
     expect(resultMonday.currentStreak).toBe(2);
     expect(resultMonday.longestStreak).toBe(2);
   });
+});
+it('calculates streaks identically when weeks start on Sunday vs Monday formats', () => {
+  const datePattern = [
+    { date: '2026-05-24', count: 1 },
+    { date: '2026-05-25', count: 1 },
+    { date: '2026-05-26', count: 1 },
+    { date: '2026-05-27', count: 1 },
+    { date: '2026-05-28', count: 1 },
+    { date: '2026-05-29', count: 1 },
+    { date: '2026-05-30', count: 1 },
+    { date: '2026-05-31', count: 1 },
+    { date: '2026-06-01', count: 1 },
+    { date: '2026-06-02', count: 1 },
+  ];
+
+  const sundayStartCalendar = {
+    totalContributions: 10,
+    weeks: [
+      {
+        contributionDays: datePattern.slice(0, 7).map((d) => ({
+          contributionCount: d.count,
+          date: d.date,
+        })),
+      },
+      {
+        contributionDays: datePattern.slice(7).map((d) => ({
+          contributionCount: d.count,
+          date: d.date,
+        })),
+      },
+    ],
+  };
+
+  const mondayStartCalendar = {
+    totalContributions: 10,
+    weeks: [
+      {
+        contributionDays: [
+          {
+            contributionCount: datePattern[0].count,
+            date: datePattern[0].date,
+          },
+        ],
+      },
+      {
+        contributionDays: datePattern.slice(1, 8).map((d) => ({
+          contributionCount: d.count,
+          date: d.date,
+        })),
+      },
+      {
+        contributionDays: datePattern.slice(8).map((d) => ({
+          contributionCount: d.count,
+          date: d.date,
+        })),
+      },
+    ],
+  };
+
+  const evalDate = new Date('2026-06-02T12:00:00Z');
+
+  const resultSunday = calculateStreak(
+    sundayStartCalendar as ContributionCalendar,
+    'UTC',
+    evalDate
+  );
+
+  const resultMonday = calculateStreak(
+    mondayStartCalendar as ContributionCalendar,
+    'UTC',
+    evalDate
+  );
+
+  expect(resultSunday.currentStreak).toBe(10);
+  expect(resultSunday.longestStreak).toBe(10);
+
+  expect(resultMonday.currentStreak).toBe(10);
+  expect(resultMonday.longestStreak).toBe(10);
 });
 
 describe('calculateStreak — timezone awareness', () => {
