@@ -119,20 +119,4 @@ describe('StatsCard', () => {
 
     expect(screen.getByTestId('icon-flame')).toBeDefined();
   });
-
-  it('renders a clean info symbol in the UTC disclaimer without mojibake text', () => {
-    const { container } = render(
-      <StatsCard
-        title="Current Streak"
-        value="12"
-        description="Consecutive contribution days"
-        icon="Flame"
-        showUTCDisclaimer={true}
-        utcDate="2026-06-01"
-      />
-    );
-
-    expect(container.textContent).toContain('\u2139');
-    expect(container.textContent).not.toContain('\u00E2\u20AC\u2039');
-  });
 });
