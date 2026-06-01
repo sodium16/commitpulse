@@ -707,17 +707,6 @@ export async function getOrgDashboardData(orgName: string, options: FetchOptions
     throw new Error('This endpoint is strictly for organizations.');
   if (membersOrError instanceof Error) throw membersOrError;
 
-  const members: string[] = membersOrError;
-  const calendars = (
-    await Promise.all(
-      members.map((m) =>
-        fetchGitHubContributions(m, options)
-          .then((d) => d.calendar)
-          .catch(() => null)
-      )
-    )
-  ).filter((c): c is ContributionCalendar => c !== null);
-
   const members = membersOrError;
 
   // Fetch calendars for all members concurrently with capped concurrency to avoid 429s/timeouts
