@@ -22,6 +22,8 @@ import {
   Plus,
   Minus,
   Code2,
+  GitPullRequest,
+  CircleDot,
 } from 'lucide-react';
 
 /* ── types ────────────────────────────────────────────────────────────── */
@@ -48,6 +50,8 @@ interface UserStats {
   peakStreak: number;
   totalContributions: number;
   codingHabit?: string;
+  totalPRs?: number;
+  totalIssues?: number;
 }
 
 interface LanguageData {
@@ -889,6 +893,18 @@ export default function CompareClient() {
                     icon={Users}
                     valueA={d1.profile.stats.followers}
                     valueB={d2.profile.stats.followers}
+                  />
+                  <StatBattle
+                    label="Pull Requests"
+                    icon={GitPullRequest}
+                    valueA={d1.stats.totalPRs || 0}
+                    valueB={d2.stats.totalPRs || 0}
+                  />
+                  <StatBattle
+                    label="Issues"
+                    icon={CircleDot}
+                    valueA={d1.stats.totalIssues || 0}
+                    valueB={d2.stats.totalIssues || 0}
                   />
                 </div>
               </div>
