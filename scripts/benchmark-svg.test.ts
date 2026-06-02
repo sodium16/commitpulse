@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const perfHooksMock = vi.hoisted(() => ({
+  performance: {
+    now: vi.fn(),
+  },
+}));
+
 vi.mock('../lib/svg/generator', () => ({
   generateSVG: vi.fn(() => '<svg/>'),
 }));
@@ -10,9 +16,8 @@ vi.mock('../lib/svg/sanitizer', () => ({
 }));
 
 vi.mock('perf_hooks', () => ({
-  performance: {
-    now: vi.fn(),
-  },
+  ...perfHooksMock,
+  default: perfHooksMock,
 }));
 
 async function runBenchmarkScript() {
