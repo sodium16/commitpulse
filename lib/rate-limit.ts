@@ -282,10 +282,10 @@ export async function rateLimit(
     };
   }
 
-  tracker.count++;
-  await trackers.update(ip, tracker);
+  const newCount = tracker.count + 1;
+  await trackers.update(ip, { count: newCount, resetAt: tracker.resetAt });
 
-  if (tracker.count > limit) {
+  if (newCount > limit) {
     return {
       success: false,
       limit,
@@ -297,7 +297,7 @@ export async function rateLimit(
   return {
     success: true,
     limit,
-    remaining: limit - tracker.count,
+    remaining: limit - newCount,
     reset: tracker.resetAt,
   };
 }
