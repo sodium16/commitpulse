@@ -42,9 +42,16 @@ export function toValidHexColor(defaultColor: string) {
     val && isValidHex(val) ? sanitizeHexColor(val, defaultColor) : undefined;
 }
 
+/**
+ * Parses the ?grace= URL parameter.
+ * Uses parseFloat() — the standard for all numeric URL param parsers in this
+ * file — so that partial strings like '2abc' parse as 2 rather than NaN,
+ * and empty string correctly returns NaN (triggering the default fallback).
+ * Clamps to [0, 7]. Default: 1.
+ */
 export function toGraceValue(val?: string): number {
   if (!val) return 1;
-  const parsed = Number(val);
+  const parsed = parseFloat(val);
   return isNaN(parsed) ? 1 : Math.max(0, Math.min(parsed, 7));
 }
 
