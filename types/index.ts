@@ -1,5 +1,10 @@
 // types/index.ts
 
+/**
+ * Branded hex color string. Only `sanitizeHexColor` (for user input)
+ * or `hexColor` (for hardcoded literals) may produce this type.
+ * Do not cast plain strings to HexColor manually.
+ */
 export type HexColor = string & { __brand: 'HexColor' };
 
 export type Scale = 'linear' | 'log';
