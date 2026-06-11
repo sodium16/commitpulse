@@ -33,6 +33,15 @@ const REST_TIMEOUT_MS = 5000; // 5s for REST endpoints
 
 let currentTokenIndex = 0;
 const rateLimitedTokens = new Map<string, number>();
+const tokenStats = new Map<string, { remaining: number; resetTime: number }>();
+
+export function getTokenStatsForTests() {
+  return tokenStats;
+}
+
+export function getGlobalCircuitBreakerOpenUntilForTests() {
+  return globalCircuitBreakerOpenUntil;
+}
 
 //Explicit, strongly-typed Error subclass
 export class RateLimitError extends Error {
@@ -151,6 +160,24 @@ export async function fetchWithRetry(
     console.error('Failed to update quota monitor', err);
   }
 
+  if (isGitHubRequest && currentToken && res) {
+    const remainingHeader = res.headers.get('x-ratelimit-remaining');
+    const resetHeader = res.headers.get('x-ratelimit-reset');
+    if (remainingHeader !== null) {
+      const remaining = parseInt(remainingHeader, 10);
+      let resetTime = Date.now() + 60 * 1000;
+      if (resetHeader) {
+        const parsed = parseInt(resetHeader, 10);
+        if (!Number.isNaN(parsed)) {
+          resetTime = parsed * 1000;
+        }
+      }
+      if (!Number.isNaN(remaining)) {
+        tokenStats.set(currentToken, { remaining, resetTime });
+      }
+    }
+  }
+
   // Handle invalid/expired tokens (HTTP 401)
   const isInvalidToken = res.status === 401;
   if (isInvalidToken && currentToken) {
@@ -183,6 +210,7 @@ export async function fetchWithRetry(
         }
       }
       rateLimitedTokens.set(currentToken, resetTime);
+      tokenStats.set(currentToken, { remaining: 0, resetTime });
       const tokens = getGitHubTokens();
       if (tokens.length > 1) {
         currentTokenIndex = (currentTokenIndex + 1) % tokens.length;
@@ -472,6 +500,7 @@ export function clearGitHubApiCacheForTests(): void {
   reposCache.clear();
   contributedReposCache.clear();
   rateLimitedTokens.clear();
+  tokenStats.clear();
   currentTokenIndex = 0;
   globalCircuitBreakerOpenUntil = 0;
 }
@@ -486,26 +515,94 @@ function getGitHubToken(): string {
   const now = Date.now();
   const tokenSet = new Set(tokens);
 
+  // Clear expired and missing env tokens from map
   for (const [t, expiry] of rateLimitedTokens.entries()) {
     if (now >= expiry || !tokenSet.has(t)) {
       rateLimitedTokens.delete(t);
     }
   }
 
-  for (let i = 0; i < tokens.length; i++) {
-    const idx = (currentTokenIndex + i) % tokens.length;
-    const token = tokens[idx];
-    if (!rateLimitedTokens.has(token)) {
-      currentTokenIndex = idx;
-      return token;
+  // Clear missing env tokens from tokenStats
+  for (const t of tokenStats.keys()) {
+    if (!tokenSet.has(t)) {
+      tokenStats.delete(t);
     }
   }
 
-  const expiries = Array.from(rateLimitedTokens.values());
-  const earliestResetTime = expiries.length > 0 ? Math.min(...expiries) : now + 60 * 1000;
+  // Find all active (non-rate-limited) tokens
+  const activeTokens: string[] = [];
+  for (const token of tokens) {
+    const expiry = rateLimitedTokens.get(token);
+    if (expiry && now < expiry) {
+      continue;
+    }
+    const stats = tokenStats.get(token);
+    if (stats && stats.remaining === 0 && stats.resetTime > now) {
+      continue;
+    }
+    activeTokens.push(token);
+  }
+
+  if (activeTokens.length > 0) {
+    // Separate into known and unknown
+    const unknownTokens = activeTokens.filter((t) => !tokenStats.has(t));
+    let bestToken = '';
+
+    if (unknownTokens.length > 0) {
+      // Two-phase fallback: pick the next unknown token in round-robin order
+      let bestTokenIndex = -1;
+      for (let i = 0; i < tokens.length; i++) {
+        const idx = (currentTokenIndex + i) % tokens.length;
+        const token = tokens[idx];
+        if (unknownTokens.includes(token)) {
+          bestToken = token;
+          bestTokenIndex = idx;
+          break;
+        }
+      }
+      if (bestTokenIndex !== -1) {
+        currentTokenIndex = bestTokenIndex;
+        return bestToken;
+      }
+    } else {
+      // All active tokens have known stats: pick the one with the highest remaining quota
+      let maxRemaining = -1;
+      let bestIndex = -1;
+      for (const token of activeTokens) {
+        const stats = tokenStats.get(token)!;
+        if (stats.remaining > maxRemaining) {
+          maxRemaining = stats.remaining;
+          bestToken = token;
+          bestIndex = tokens.indexOf(token);
+        }
+      }
+      if (bestIndex !== -1) {
+        currentTokenIndex = bestIndex;
+        return bestToken;
+      }
+    }
+  }
+
+  // Calculate the optimal, absolute earliest reset timestamp if all tokens are limited
+  const resetTimes: number[] = [];
+  for (const token of tokens) {
+    const expiry = rateLimitedTokens.get(token);
+    if (expiry) {
+      resetTimes.push(expiry);
+    }
+    const stats = tokenStats.get(token);
+    if (stats) {
+      resetTimes.push(stats.resetTime);
+    }
+  }
+
+  const earliestResetTime = resetTimes.length > 0 ? Math.min(...resetTimes) : now + 60 * 1000;
   const backoffMs = Math.max(0, earliestResetTime - now);
 
+  // Trip the global circuit breaker state immediately
   globalCircuitBreakerOpenUntil = earliestResetTime;
+
+  // Throw RateLimitError
   throw new RateLimitError('API Rate Limit Exceeded', backoffMs);
 }
 
