@@ -4,12 +4,6 @@ import { RateLimiter, rateLimit } from './rate-limit';
 describe('RateLimiter accessibility standards', () => {
   it('should expose rate limit result with accessible status information', async () => {
     const limiter = new RateLimiter(2, 60000);
-import { describe, expect, it } from 'vitest';
-import { RateLimiter, rateLimit } from './rate-limit';
-
-describe('rate-limit accessibility compliance', () => {
-  it('should return a complete result structure for screen-reader consumers', async () => {
-    const limiter = new RateLimiter(5, 60000);
 
     const result = await limiter.checkWithResult('127.0.0.1');
 
@@ -23,7 +17,6 @@ describe('rate-limit accessibility compliance', () => {
     const limiter = new RateLimiter(1, 60000);
 
     const first = await limiter.check('test-ip');
-
     const second = await limiter.check('test-ip');
 
     expect(first).toBe(true);
@@ -42,28 +35,6 @@ describe('rate-limit accessibility compliance', () => {
   });
 
   it('should support blocked state announcement behavior', async () => {
-  it('should expose numeric metadata suitable for accessibility announcements', async () => {
-    const limiter = new RateLimiter(5, 60000);
-
-    const result = await limiter.checkWithResult('127.0.0.2');
-
-    expect(typeof result.limit).toBe('number');
-    expect(typeof result.remaining).toBe('number');
-    expect(typeof result.reset).toBe('number');
-  });
-
-  it('should provide consistent feedback for allowlisted users', async () => {
-    const limiter = new RateLimiter(5, 60000);
-
-    limiter.allow('allow-ip');
-
-    const result = await limiter.checkWithResult('allow-ip');
-
-    expect(result.success).toBe(true);
-    expect(result.remaining).toBe(result.limit);
-  });
-
-  it('should provide consistent feedback for blocklisted users', async () => {
     const limiter = new RateLimiter(5, 60000);
 
     limiter.block('blocked-ip');
@@ -84,14 +55,5 @@ describe('rate-limit accessibility compliance', () => {
     expect(typeof result.limit).toBe('number');
     expect(typeof result.remaining).toBe('number');
     expect(typeof result.reset).toBe('number');
-  it('should return accessible rate-limit information from helper function', async () => {
-    const result = await rateLimit('helper-ip', 3, 60000);
-
-    expect(result).toMatchObject({
-      success: expect.any(Boolean),
-      limit: expect.any(Number),
-      remaining: expect.any(Number),
-      reset: expect.any(Number),
-    });
   });
 });
