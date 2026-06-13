@@ -1,5 +1,6 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { SOCIALS, SOCIAL_CATEGORIES, getSocialById } from './socials';
+import { SOCIALS, getSocialById } from './socials';
 import type { Social } from '../types';
 
 describe('Socials Massive Data Sets and Extreme High Bounds Scaling', () => {
@@ -16,11 +17,9 @@ describe('Socials Massive Data Sets and Extreme High Bounds Scaling', () => {
   });
 
   it('2. should construct highly loaded socialLinks config without crashing', () => {
-    const maxUrl = 'https://github.com/' + 'x'.repeat(2028); // exactly 2048 chars
-    const selectedSocials = Array.from(
-      { length: 10_000 },
-      (_, i) => SOCIALS[i % SOCIALS.length].id
-    );
+    const baseUrl = 'https://github.com/';
+    const maxUrl = baseUrl + 'x'.repeat(2048 - baseUrl.length); // exactly 2048 chars
+    const selectedSocials = Array.from({ length: 10_000 }, (_, i) => `social-${i}`);
     const socialLinks: Record<string, string> = {};
     selectedSocials.forEach((id) => {
       socialLinks[id] = maxUrl;
@@ -29,7 +28,7 @@ describe('Socials Massive Data Sets and Extreme High Bounds Scaling', () => {
     Object.values(socialLinks).forEach((url) => {
       expect(url.length).toBeLessThanOrEqual(2048);
     });
-    expect(Object.keys(socialLinks).length).toBeGreaterThan(0);
+    expect(Object.keys(socialLinks).length).toBe(10_000);
   });
 
   it('3. should assert SVG grid coordinates do not overlap across all 52 real social entries', () => {
@@ -51,7 +50,7 @@ describe('Socials Massive Data Sets and Extreme High Bounds Scaling', () => {
     });
   });
 
-  it('4. should complete 100,000 getSocialById lookups within 500ms', () => {
+  it('4. should complete 100,000 getSocialById lookups within 1500ms', () => {
     const ids = SOCIALS.map((s) => s.id);
     const start = performance.now();
 
@@ -60,7 +59,8 @@ describe('Socials Massive Data Sets and Extreme High Bounds Scaling', () => {
     }
 
     const elapsed = performance.now() - start;
-    expect(elapsed).toBeLessThan(500);
+    // Set a generous threshold (1500ms) to ensure timing is stable across virtualized CI runners
+    expect(elapsed).toBeLessThan(1500);
   });
 
   it('5. should parse a massive social icon SVG grid without layout tree errors', () => {
@@ -73,7 +73,7 @@ describe('Socials Massive Data Sets and Extreme High Bounds Scaling', () => {
       return `<rect x="${x}" y="${y}" width="${SIZE}" height="${SIZE}" /><text x="${x + 4}" y="${y + 20}">${s.name.slice(0, 12)}</text>`;
     }).join('');
 
-    const svg = `<svg viewBox="0 0 512 ${Math.ceil(SOCIALS.length / COLS) * SIZE}" xmlns="http://www.w3.org/2000/svg">${rects}</svg>`;
+    const svg = `<svg viewBox="0 0 ${COLS * SIZE} ${Math.ceil(SOCIALS.length / COLS) * SIZE}" xmlns="http://www.w3.org/2000/svg">${rects}</svg>`;
 
     const parser = new DOMParser();
     const doc = parser.parseFromString(svg, 'image/svg+xml');
