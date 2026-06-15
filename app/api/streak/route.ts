@@ -574,7 +574,7 @@ export async function GET(request: Request) {
       });
       const pngBuffer = resvg.render().asPng();
 
-      return new NextResponse(pngBuffer, {
+      return new NextResponse(pngBuffer as any, {
         headers: {
           'Content-Type': 'image/png',
           'Cache-Control': cacheControl,
