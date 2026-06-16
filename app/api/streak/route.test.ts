@@ -619,7 +619,7 @@ describe('GET /api/streak', () => {
       );
       const body = await response.text();
       expect(response.status).toBe(400);
-      expect(body).toContain('"to" date must be after or equal to "from" date');
+      expect(body).toContain('&quot;to&quot; date must be after or equal to &quot;from&quot; date');
       expect(fetchGitHubContributions).not.toHaveBeenCalled();
     });
 
@@ -682,7 +682,7 @@ describe('GET /api/streak', () => {
 
         expect(response.status).toBe(400);
         expect(body).toContain('<svg');
-        expect(body).toContain('Invalid "date" format');
+        expect(body).toContain('Invalid &quot;date&quot; format');
         expect(fetchGitHubContributions).not.toHaveBeenCalled();
       });
 
@@ -690,14 +690,14 @@ describe('GET /api/streak', () => {
         const response = await GET(makeRequest({ user: 'octocat', date: '2026-15-40' }));
         const body = await response.text();
         expect(response.status).toBe(400);
-        expect(body).toContain('Invalid "date" format');
+        expect(body).toContain('Invalid &quot;date&quot; format');
       });
 
       it('returns 400 when an invalid ISO8601 calendar date format like "2026-15-40" is supplied (Variation 4)', async () => {
         const response = await GET(makeRequest({ user: 'octocat', date: '2026-15-40' }));
         const body = await response.text();
         expect(response.status).toBe(400);
-        expect(body).toContain('Invalid "date" format. Use ISO 8601.');
+        expect(body).toContain('Invalid &quot;date&quot; format. Use ISO 8601.');
       });
     });
   });
@@ -1804,7 +1804,7 @@ describe('GET /api/streak', () => {
 
       expect(response.status).toBe(400);
       expect(body).toContain('<svg');
-      expect(body).toContain('Invalid "date" format');
+      expect(body).toContain('Invalid &quot;date&quot; format');
     });
 
     it('does not call fetchGitHubContributions when ?date= is malformed', async () => {
@@ -1818,7 +1818,7 @@ describe('GET /api/streak', () => {
       expect(response.status).toBe(400);
       const body = await response.text();
       expect(body).toContain('<svg');
-      expect(body).toContain('Invalid "date" format');
+      expect(body).toContain('Invalid &quot;date&quot; format');
     });
 
     it('returns 400 for a freeform string ?date=not-a-date', async () => {

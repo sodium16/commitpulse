@@ -3,6 +3,7 @@ import { logger } from '@/lib/logger';
 import type { Metadata } from 'next';
 import GithubWrapped from '@/components/dashboard/GithubWrapped';
 import { getFullDashboardData, getWrappedData } from '@/lib/github';
+import { getUserGitHubToken } from '@/lib/githubtoken';
 
 export async function generateMetadata({
   params,
@@ -26,6 +27,7 @@ export default async function WrappedPage({
   const { username } = await params;
   const resolvedSearchParams = await searchParams;
   const targetYear = resolvedSearchParams?.year || new Date().getFullYear().toString();
+  const userToken = await getUserGitHubToken();
 
   // 1. Fetch data safely.
   // If this fails, the error will bubble up to the nearest error.tsx file.
@@ -34,8 +36,8 @@ export default async function WrappedPage({
 
   try {
     [dashboardData, wrappedData] = await Promise.all([
-      getFullDashboardData(username),
-      getWrappedData(username, targetYear),
+      getFullDashboardData(username, { token: userToken }),
+      getWrappedData(username, targetYear, { token: userToken }),
     ]);
   } catch (error) {
     logger.error('Failed to load wrapped data', {
