@@ -33,6 +33,24 @@ import { quotaMonitor } from '@/services/github/quota-monitor';
 import { refreshPolicy } from '@/services/github/refresh-policy';
 import { refreshRateLimiter } from '@/services/github/refresh-rate-limiter';
 
+const VALIDATION_CACHE_MAX = 256;
+const validationCache = new Map<string, ReturnType<typeof streakParamsSchema.safeParse>>();
+
+function cachedValidation(
+  key: string,
+  parseFn: () => ReturnType<typeof streakParamsSchema.safeParse>
+) {
+  let cached = validationCache.get(key);
+  if (cached !== undefined) return cached;
+  cached = parseFn();
+  if (validationCache.size >= VALIDATION_CACHE_MAX) {
+    const firstKey = validationCache.keys().next().value;
+    if (firstKey !== undefined) validationCache.delete(firstKey);
+  }
+  validationCache.set(key, cached);
+  return cached;
+}
+
 const SVG_CSP_HEADER =
   "default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://fonts.gstatic.com;";
 
@@ -66,7 +84,10 @@ function getMonthlyReferenceDate(year: string | undefined, timezone: string): Da
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
 
-  const parseResult = streakParamsSchema.safeParse(Object.fromEntries(searchParams.entries()));
+  const cacheKey = searchParams.toString();
+  const parseResult = cachedValidation(cacheKey, () =>
+    streakParamsSchema.safeParse(Object.fromEntries(searchParams.entries()))
+  );
   try {
     if (!parseResult.success) {
       const fieldErrors = parseResult.error.flatten();
