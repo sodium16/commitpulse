@@ -668,25 +668,6 @@ function buildErrorResponse(error: unknown, parseResult: ParseResult): NextRespo
       }
     );
   }
-  function buildInlineErrorSVG(text: string): string {
-    const MAX_LINE = 48;
-    const truncated = text.length > MAX_LINE * 2 ? text.slice(0, MAX_LINE * 2 - 1) + '…' : text;
-
-    const line1 = escapeXML(truncated.slice(0, MAX_LINE));
-    const line2 = truncated.length > MAX_LINE ? escapeXML(truncated.slice(MAX_LINE)) : null;
-
-    const textY = line2 ? '62' : '75';
-
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="150" viewBox="0 0 400 150">
-      <rect width="400" height="150" fill="#2d0000" rx="8"/>
-      <text x="200" y="${textY}" text-anchor="middle" dominant-baseline="central" fill="#ffcccc" font-family="sans-serif" font-size="13">${line1}</text>${
-        line2
-          ? `
-      <text x="200" y="91" text-anchor="middle" dominant-baseline="central" fill="#ffcccc" font-family="sans-serif" font-size="13">${line2}</text>`
-          : ''
-      }
-    </svg>`;
-  }
 
   const isNotFound =
     message.toLowerCase().includes('not found') ||
