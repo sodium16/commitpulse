@@ -2374,13 +2374,14 @@ describe('XML Validation - All Generator Outputs', () => {
 
   const mockMonthlyStats: MonthlyStats = {
     currentMonthTotal: 42,
+    previousMonthTotal: 30,
+    deltaPercentage: 40,
+    deltaAbsolute: 12,
     currentMonthName: 'June',
-    monthlyStats: [],
-    busiestMonth: 'June',
-    busiestMonthTotal: 42,
   };
 
   const mockCalendar: ContributionCalendar = {
+    totalContributions: 100,
     weeks: [
       {
         contributionDays: [
@@ -2407,9 +2408,12 @@ describe('XML Validation - All Generator Outputs', () => {
     ],
   };
 
-  const baseParams: BadgeParams = {
+  const baseParams = {
     user: 'testuser',
-    theme: 'dark',
+    bg: '0d1117',
+    text: 'e6edf3',
+    accent: '58a6ff',
+    scale: 'linear' as const,
   } as unknown as BadgeParams;
 
   it('generateSVG produces valid XML', () => {
@@ -2424,7 +2428,16 @@ describe('XML Validation - All Generator Outputs', () => {
 
   it('generateSVG with all themes produces valid XML', () => {
     for (const themeName of Object.keys(themes)) {
-      const svg = generateSVG(mockStats, { ...baseParams, theme: themeName }, mockCalendar);
+      const svg = generateSVG(
+        mockStats,
+        {
+          ...baseParams,
+          bg: themes[themeName].bg,
+          accent: themes[themeName].accent,
+          text: themes[themeName].text,
+        },
+        mockCalendar
+      );
       assertValidSVG(svg);
     }
   });
@@ -2440,17 +2453,17 @@ describe('XML Validation - All Generator Outputs', () => {
   });
 
   it('generateNotFoundSVG produces valid XML', () => {
-    const svg = generateNotFoundSVG('testuser');
+    const svg = generateNotFoundSVG('testuser', '0d1117', '58a6ff', 'e6edf3', 8);
     assertValidSVG(svg);
   });
 
   it('generateRateLimitSVG produces valid XML', () => {
-    const svg = generateRateLimitSVG('testuser');
+    const svg = generateRateLimitSVG('0d1117', '58a6ff', 'e6edf3', 8);
     assertValidSVG(svg);
   });
 
   it('generateRateLimitSVG with circuit breaker produces valid XML', () => {
-    const svg = generateRateLimitSVG('testuser', undefined, true);
+    const svg = generateRateLimitSVG('0d1117', '58a6ff', 'e6edf3', 8, '8s', true);
     assertValidSVG(svg);
   });
 
