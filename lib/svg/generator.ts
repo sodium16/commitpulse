@@ -715,8 +715,11 @@ function renderIsometricLabels(
       prevMonthStr = monthStr;
     }
   });
-
-  const labelColorHex = params.labelColor ? `#${params.labelColor}` : color;
+  let labelColorHex = color;
+  if (params.labelColor) {
+    const fallbackHex = color.replace(/^#/, '') || 'ffffff';
+    labelColorHex = `#${sanitizeHexColor(params.labelColor, fallbackHex)}`;
+  }
 
   monthLabels.forEach((label) => {
     const tx = s(GRID_ORIGIN_X + (label.col - MONTH_LABEL_ROW_OFFSET) * TILE_WIDTH_HALF + 8);
@@ -809,7 +812,7 @@ export function generateSVG(
 
   const text = `#${sanitizeHexColor(params.text, 'ffffff')}`;
 
-  const borderAttr = params.border ? `stroke="#${params.border}" stroke-width="2"` : '';
+  const borderAttr = params.border ? `stroke="#${sanitizeHexColor(params.border, '000000')}" stroke-width="2"` : '';
 
   const sanitizedFont = sanitizeFont(params.font);
   const selectedFont = resolveFont(sanitizedFont);
@@ -1606,7 +1609,7 @@ export function generateHeatmapSVG(
   const accent = `#${sanitizeHexColor(rawAccent, '00ffaa')}`;
   const text = `#${sanitizeHexColor(params.text, 'ffffff')}`;
 
-  const borderAttr = params.border ? `stroke="#${params.border}" stroke-width="2"` : '';
+  const borderAttr = params.border ? `stroke="#${sanitizeHexColor(params.border, '000000')}" stroke-width="2"` : '';
 
   const sanitizedFont = sanitizeFont(params.font);
   const selectedFont = resolveFont(sanitizedFont);
@@ -3128,7 +3131,7 @@ export function generateLanguagesSVG(
   const accent = `#${sanitizeHexColor(accentStr, '00ffaa')}`;
 
   const text = `#${sanitizeHexColor(params.text, 'ffffff')}`;
-  const borderAttr = params.border ? `stroke="#${params.border}" stroke-width="2"` : '';
+  const borderAttr = params.border ? `stroke="#${sanitizeHexColor(params.border, '000000')}" stroke-width="2"` : '';
 
   const sanitizedFont = sanitizeFont(params.font);
   const selectedFont = resolveFont(sanitizedFont);
