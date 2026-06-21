@@ -21,6 +21,7 @@ import {
   parseGradientStops,
   getGradientCoordinates,
   escapeXML,
+  sanitizeSpeed,
 } from './sanitizer';
 
 import { GRID_ORIGIN_X, GRID_ORIGIN_Y, TILE_HEIGHT_HALF, TILE_WIDTH_HALF } from './layoutConstants';
@@ -612,6 +613,7 @@ function renderRadarScan(
   accentColor: string,
   autoTheme: boolean
 ): string {
+  const safeSpeed = sanitizeSpeed(speed);
   const s = createScaler(sf);
   const fillAttr = autoTheme
     ? 'class="cp-accent-fill scan-line"'
@@ -623,7 +625,7 @@ function renderRadarScan(
     height="${s(1)}"
     ${fillAttr}
     fill-opacity="0.3"
-    style="--scan-speed: ${speed}; --scan-start: ${s(0)}px; --scan-end: ${s(240)}px;"
+    style="--scan-speed: ${safeSpeed}; --scan-start: ${s(0)}px; --scan-end: ${s(240)}px;"
   />`;
 }
 
@@ -666,7 +668,7 @@ function renderFooter(
     height="${s(1)}"
     ${scanLineFill}
     fill-opacity="0.3"
-    style="--scan-speed: ${params.speed || '8s'}; --scan-start: ${s(0)}px; --scan-end: ${s(240)}px;"
+    style="--scan-speed: ${sanitizeSpeed(params.speed)}; --scan-start: ${s(0)}px; --scan-end: ${s(240)}px;"
   />`;
 }
 
@@ -963,7 +965,7 @@ ${
     ? `<text x="${s(300)}" y="${s(50)}" text-anchor="middle" class="title">${truncateUsername(safeUser).toUpperCase()}${params.isOfflineFallback ? '<tspan fill="#ff9f43" font-size="10px" font-weight="bold"> [STALE CACHE]</tspan>' : ''}</text>`
     : ''
 }
-${renderRadarScan(params.speed || '8s', sf, '', true)}
+${renderRadarScan(params.speed, sf, '', true)}
 ${renderMilestoneBadges(stats, params, sf)}
 </svg>
 `;
@@ -1300,7 +1302,7 @@ export function generateWrappedSVG(
     ${accentClass}
     class="scan-line"
     fill-opacity="0.18"
-    style="--scan-speed: ${params.speed || '8s'};"
+    style="--scan-speed: ${sanitizeSpeed(params.speed)};"
   />
 
   <g transform="translate(25, 45)">
@@ -1705,7 +1707,7 @@ export function generateHeatmapSVG(
     x="${s(60)}" y="${s(55)}" width="${s(2)}" height="${s(133)}"
     fill="${accent}" fill-opacity="0.2"
     class="hm-scan"
-    style="--scan-speed: ${params.speed || '8s'};"
+    style="--scan-speed: ${sanitizeSpeed(params.speed)};"
   />
 
   ${
@@ -1838,7 +1840,7 @@ function generateAutoThemeHeatmapSVG(
     x="${s(60)}" y="${s(55)}" width="${s(2)}" height="${s(133)}"
     class="cp-accent-fill hm-scan"
     fill-opacity="0.2"
-    style="--scan-speed: ${params.speed || '8s'};"
+    style="--scan-speed: ${sanitizeSpeed(params.speed)};"
   />
 
   ${
@@ -1948,6 +1950,7 @@ export function generateNotFoundSVG(
   radius: number,
   speed: string = '8s'
 ): string {
+  const safeSpeed = sanitizeSpeed(speed);
   const sanitizedUsername = username.replace(/[^a-zA-Z0-9\-]/g, '').slice(0, 39) || 'unknown';
   const safeName = escapeXML(sanitizedUsername.toUpperCase());
   const ghostTowersHtml = renderGhostTowers(GHOST_LAYOUT, accent);
@@ -2006,7 +2009,7 @@ export function generateNotFoundSVG(
 
   <rect width="${SVG_WIDTH}" height="${SVG_HEIGHT}" rx="${radius}" fill="url(#ghostFade)"/>
 
-  <rect x="100" y="80" width="400" height="1" class="scan-line" fill="${accent}" fill-opacity="0.12" style="--scan-speed: ${speed};"/>
+  <rect x="100" y="80" width="400" height="1" class="scan-line" fill="${accent}" fill-opacity="0.12" style="--scan-speed: ${safeSpeed};"/>
 
   <text x="300" y="50" text-anchor="middle" class="title">${safeName}</text>
 
@@ -3014,6 +3017,7 @@ export function generateRateLimitSVG(
   speed: string = '8s',
   isCircuitOpen = false
 ): string {
+  const safeSpeed = sanitizeSpeed(speed);
   const ghostTowersHtml = renderGhostTowers(GHOST_LAYOUT, accent);
 
   const safeId = 'rate_limit';
@@ -3072,7 +3076,7 @@ export function generateRateLimitSVG(
   <rect width="${SVG_WIDTH}" height="${SVG_HEIGHT}" rx="${radius}" fill="url(#ghostFade)"/>
 
   <rect x="100" y="80" width="400" height="1" fill="${accent}" fill-opacity="0.12" class="rate-limit-scan">
-    <animate attributeName="y" values="80;320;80" dur="${speed}" repeatCount="indefinite"/>
+    <animate attributeName="y" values="80;320;80" dur="${safeSpeed}" repeatCount="indefinite"/>
   </rect>
 
   <text x="300" y="50" text-anchor="middle" class="title">API RATE LIMIT</text>
