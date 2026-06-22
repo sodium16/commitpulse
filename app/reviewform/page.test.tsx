@@ -12,9 +12,8 @@ describe('ReviewFormPage', () => {
         name: /share your experience/i,
       })
     ).toBeInTheDocument();
-    expect(screen.getByLabelText(/name/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/github or social handle/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/rating/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/display name/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/platform & handle/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/your testimonial/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /submit testimonial/i })).toBeInTheDocument();
   });
