@@ -46,6 +46,7 @@ import ContributionForecast from './ContributionForecast';
 import ProfileComparisonAnalytics from './ProfileComparisonAnalytics';
 import ContributionReplay from './ContributionReplay';
 import GoalTracker from './GoalTracker';
+import ActivityHeatmapPro from './ActivityHeatmapPro';
 
 // Define the dashboard data structure
 export interface DashboardData {
@@ -749,6 +750,13 @@ export default function DashboardClient({
           <div className="flex flex-col gap-6 lg:gap-8 min-w-0">
             <section>
               <ActivityLandscape data={initialData.activity} />
+            </section>
+
+            <section>
+              <ActivityHeatmapPro
+                activity={initialData.activity}
+                commitClock={initialData.commitClock}
+              />
             </section>
 
             <section>
