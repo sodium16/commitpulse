@@ -24,7 +24,7 @@ describe('DiscordButton accessibility behavior', () => {
   it('renders as an accessible link with visible text', () => {
     render(<DiscordButton />);
 
-    expect(screen.getByRole('link', { name: /join the core community on discord/i })).toBeDefined();
+    expect(screen.getByRole('link', { name: /discord_community/i })).toBeDefined();
   });
 
   it('uses the correct Discord invite href', () => {
