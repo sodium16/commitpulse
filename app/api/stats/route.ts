@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import { fetchGitHubContributions, contributionsCache, cacheKey } from '@/lib/github';
 import { calculateStreak } from '@/lib/calculate';
-import { statsParamsSchema } from '@/lib/validations';
+import { statsParamsSchema, coerceQueryParams } from '@/lib/validations';
 import { getClientIp } from '@/utils/getClientIp';
 import { quotaMonitor } from '@/services/github/quota-monitor';
 import { refreshPolicy } from '@/services/github/refresh-policy';
@@ -38,7 +38,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const ip = getClientIp(request);
 
-  const parseResult = statsParamsSchema.safeParse(Object.fromEntries(searchParams.entries()));
+  const parseResult = statsParamsSchema.safeParse(coerceQueryParams(searchParams));
 
   if (!parseResult.success) {
     const details = parseResult.error.flatten();
@@ -111,7 +111,7 @@ export async function GET(request: Request) {
 
   let shouldBypassCache = isRefreshRequested;
   if (isRefreshRequested) {
-    if (!refreshPolicy.isRefreshAllowed(user)) {
+    if (!refreshPolicy.tryAcquire(user)) {
       logSecurityEvent('STATS_REFRESH_COOLDOWN_VIOLATION', {
         user,
         ip,
@@ -131,9 +131,6 @@ export async function GET(request: Request) {
       bypassCache: shouldBypassCache,
       token: userToken,
     });
-    if (shouldBypassCache) {
-      refreshPolicy.recordRefresh(user);
-    }
 
     const calendar = userData.calendar;
     const stats = calculateStreak(calendar, timezone);
