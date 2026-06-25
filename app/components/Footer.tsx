@@ -1,4 +1,5 @@
 'use client';
+
 import Link from 'next/link';
 import { useTranslation } from '@/context/TranslationContext';
 import {
@@ -84,7 +85,6 @@ const NAV_ICON_MAP: Record<string, React.ReactNode> = {
   '/customize': <Sliders size={15} className="shrink-0" />,
   '/contributors': <Users size={15} className="shrink-0" />,
   '/support': <MessageCircle size={15} className="shrink-0" />,
-  '/support': <MessageCircle size={15} className="shrink-0" />, // Added
 };
 
 const RESOURCE_ICON_MAP: Record<string, React.ReactNode> = {
@@ -125,7 +125,7 @@ export function Footer() {
     },
     {
       label: t('footer.faq'),
-      href: '/support', // Point to the new dedicated Support page
+      href: '/support',
       isExternal: false,
     },
   ];
