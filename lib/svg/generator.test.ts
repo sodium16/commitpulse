@@ -14,6 +14,7 @@ import {
   truncateUsername,
   deterministicRandom,
   buildTowerPaths,
+  generateSkylineSVG,
 } from './generator';
 import { escapeXML } from './sanitizer';
 import type { BadgeParams, ContributionCalendar, StreakStats, MonthlyStats } from '../../types';
@@ -64,9 +65,9 @@ describe('generateSVG', () => {
 
     assertValidSVG(svg);
 
-    expect(svg).not.toContain('CURRENT_STREAK');
-    expect(svg).not.toContain('ANNUAL_SYNC_TOTAL');
-    expect(svg).not.toContain('PEAK_STREAK');
+    expect(svg).not.toContain('Current Streak');
+    expect(svg).not.toContain('Annual Total');
+    expect(svg).not.toContain('Peak Streak');
   });
 
   it('gives the scan line an explicit fill on static themes so it stays visible', () => {
@@ -106,9 +107,9 @@ describe('generateSVG', () => {
 
     assertValidSVG(svg);
 
-    expect(svg).toContain('CURRENT_STREAK');
-    expect(svg).toContain('ANNUAL_SYNC_TOTAL');
-    expect(svg).toContain('PEAK_STREAK');
+    expect(svg).toContain('Current Streak');
+    expect(svg).toContain('Annual Total');
+    expect(svg).toContain('Peak Streak');
   });
 
   it('uses default typography when no font is passed', () => {
@@ -151,6 +152,46 @@ describe('generateSVG', () => {
       mockCalendar
     );
     expect(svg).toContain('svg');
+  });
+
+  it('handles sqrt scale parameter correctly', () => {
+    const svg = generateSVG(
+      mockStats,
+      { user: 'avi', scale: 'sqrt' } as unknown as BadgeParams,
+      mockCalendar
+    );
+    expect(svg).toContain('svg');
+  });
+
+  it('handles generateSkylineSVG with sqrt scale correctly', () => {
+    const svg = generateSkylineSVG(
+      mockStats,
+      { user: 'avi', scale: 'sqrt' } as unknown as BadgeParams,
+      mockCalendar
+    );
+    expect(svg).toContain('svg');
+    expect(svg).not.toContain('NaN');
+  });
+
+  it('handles generateSkylineSVG with all zero contributions (no NaN)', () => {
+    const emptyCalendar = {
+      totalContributions: 0,
+      weeks: [
+        {
+          contributionDays: [
+            { contributionCount: 0, date: '2024-06-10' },
+            { contributionCount: 0, date: '2024-06-11' },
+          ],
+        },
+      ],
+    } as unknown as ContributionCalendar;
+    const svg = generateSkylineSVG(
+      mockStats,
+      { user: 'avi', scale: 'sqrt' } as unknown as BadgeParams,
+      emptyCalendar
+    );
+    expect(svg).toContain('svg');
+    expect(svg).not.toContain('NaN');
   });
 
   it('uses transparent background when hideBackground is true', () => {
@@ -397,7 +438,7 @@ describe('generateSVG', () => {
 
   it('uses English labels by default', () => {
     const svg = generateSVG(mockStats, { user: 'avi' } as unknown as BadgeParams, mockCalendar);
-    expect(svg).toContain('CURRENT_STREAK');
+    expect(svg).toContain('Current Streak');
   });
 
   it('uses Spanish labels when lang=es', () => {
@@ -406,7 +447,7 @@ describe('generateSVG', () => {
       { user: 'avi', lang: 'es' } as unknown as BadgeParams,
       mockCalendar
     );
-    expect(svg).toContain('RACHA_ACTUAL');
+    expect(svg).toContain('Racha Actual');
   });
 
   it('falls back to English labels for unknown language', () => {
@@ -415,7 +456,7 @@ describe('generateSVG', () => {
       { user: 'avi', lang: 'unknown' } as unknown as BadgeParams,
       mockCalendar
     );
-    expect(svg).toContain('CURRENT_STREAK');
+    expect(svg).toContain('Current Streak');
   });
 
   describe('LoC Mode', () => {
@@ -1219,7 +1260,7 @@ describe('generateMonthlySVG', () => {
       user: 'octocat',
     } as unknown as BadgeParams);
 
-    expect(svg).toContain('COMMITS THIS MONTH');
+    expect(svg).toContain('Commits This Month');
   });
 
   it('renders monthly stats correctly with null deltaPercentage for delta_format percent', () => {

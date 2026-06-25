@@ -41,11 +41,11 @@ describe('themes object', () => {
 // ── Theme count ───────────────────────────────────────────────────────────────
 
 describe('theme count', () => {
-  it('contains exactly 28 preset themes matching THEMES.md documentation', () => {
+  it('contains exactly 29 preset themes matching THEMES.md documentation', () => {
     // If this fails, either a theme was added to themes.ts without updating
     // THEMES.md, or a theme was removed without updating the docs.
     // Update this count when intentionally adding/removing themes.
-    expect(themeNames).toHaveLength(29);
+    expect(themeNames).toHaveLength(30);
   });
 
   it('contains all expected theme keys', () => {
@@ -76,6 +76,7 @@ describe('theme count', () => {
       'lumos',
       'tokyonight',
       'cyberpunk',
+      'cyberpunk_neon',
       'tokyo_night',
       'monokai',
       'midnight_ocean',
@@ -240,6 +241,12 @@ describe('getNormalizedThemeKey', () => {
 
   it('matches keys when user provides screaming uppercase inputs', () => {
     expect(getNormalizedThemeKey('DRACULA')).toBe('dracula');
+  });
+
+  it('matches keys when user provides padded whitespace inputs', () => {
+    expect(getNormalizedThemeKey('  dark  ')).toBe('dark');
+    expect(getNormalizedThemeKey('\tneon\n')).toBe('neon');
+    expect(getNormalizedThemeKey(' DARK ')).toBe('dark');
   });
 
   it('returns default fallback when theme name does not exist', () => {
