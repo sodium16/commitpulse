@@ -7,23 +7,23 @@ global.fetch = mockFetch;
 
 describe('EducationalCurveTracker Component', () => {
   beforeEach(() => {
-    vi.resetAllMocks();
+    vi.clearAllMocks(); // Use clearAllMocks to keep the mock active but wipe history
   });
 
   afterEach(() => {
-    cleanup(); // Completely wipe the DOM between tests
+    cleanup();
   });
 
   it('renders the animated pulse skeleton initially', async () => {
-    mockFetch.mockResolvedValueOnce({
+    // FIX: Using .mockResolvedValue (not Once) to survive React StrictMode double-mounts
+    mockFetch.mockResolvedValue({
       json: async () => ({ success: true, data: null }),
     });
 
     const { container } = render(<EducationalCurveTracker username="jalisa2106" />);
-    // Check for the skeleton synchronously
+
     expect(container.querySelector('.animate-pulse')).toBeInTheDocument();
 
-    // FIX: Wait for the component to finish loading so the promise doesn't bleed into Test 2
     await waitFor(() => {
       expect(container.firstChild).toBeNull();
     });
@@ -39,7 +39,8 @@ describe('EducationalCurveTracker Component', () => {
       },
     };
 
-    mockFetch.mockResolvedValueOnce({
+    // FIX: Using .mockResolvedValue (not Once)
+    mockFetch.mockResolvedValue({
       json: async () => mockPayload,
     });
 
@@ -55,7 +56,8 @@ describe('EducationalCurveTracker Component', () => {
   });
 
   it('fails silently/renders nothing on API error', async () => {
-    mockFetch.mockResolvedValueOnce({
+    // FIX: Using .mockResolvedValue (not Once)
+    mockFetch.mockResolvedValue({
       json: async () => ({ success: false, error: 'User not found' }),
     });
 
