@@ -1,3 +1,4 @@
+//not-found.timezone-boundaries.test.tsx
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import NotFound from './not-found';
@@ -51,9 +52,10 @@ describe('NotFound Component - Timezone Normalization & Calendar Data Boundary A
     // Tests that end-of-year/end-of-month boundaries render correctly without throwing errors
     // ensuring consistent component stability across simulated visual date shifts
     vi.setSystemTime(new Date('2023-12-31T23:59:59Z'));
-    render(<NotFound />);
+    const { container } = render(<NotFound />);
 
-    expect(screen.getByText(/git checkout this-page/i)).toBeInTheDocument();
+    // Asserting on the combined textContent avoids that false negative.
+    expect(container.textContent).toMatch(/git checkout this-page/i);
     expect(screen.getByText(/Return Home/i)).toBeInTheDocument();
   });
 
@@ -75,15 +77,17 @@ describe('NotFound Component - Timezone Normalization & Calendar Data Boundary A
     // Verifying primary user interactions are unaffected by the system date/locale configurations
     const homeLink = screen.getByRole('link', { name: /Return Home/i });
     expect(homeLink).toHaveAttribute('href', '/');
-    expect(screen.getByText(/No stash. No reflog. Just vibes./i)).toBeInTheDocument();
+    expect(screen.getByText(/No stash\. No reflog\. Just vibes\./i)).toBeInTheDocument();
   });
 
   it('Test offsets around transition dates like daylight savings', () => {
     // Spring Forward / Fall Back boundaries (e.g., US DST transition on March 10, 2024)
     vi.setSystemTime(new Date('2024-03-10T02:30:00-05:00')); // In the DST transition gap
-    render(<NotFound />);
+    const { container } = render(<NotFound />);
 
     expect(screen.getByTestId('mini-game')).toBeInTheDocument();
-    expect(screen.getByText(/git checkout this-page/i)).toBeInTheDocument();
+    // Same nested-span issue as above — match against combined textContent instead
+    // of getByText, which only checks a single element's own text node.
+    expect(container.textContent).toMatch(/git checkout this-page/i);
   });
 });
