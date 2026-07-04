@@ -8,8 +8,8 @@ const interactiveViewerSchema = z.object({
   children: z.custom<ReactNode>(),
   className: z.string().optional(),
   is3DMode: z.boolean().optional(),
-  onRotate3D: z.function().optional(),
-  onReset3D: z.function().optional(),
+  onRotate3D: z.custom<(dx: number, dy: number) => void>().optional(),
+  onReset3D: z.custom<() => void>().optional(),
 });
 
 type InteractiveViewerProps = React.ComponentProps<typeof InteractiveViewer>;
