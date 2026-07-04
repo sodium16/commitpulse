@@ -1,34 +1,48 @@
 // ReviewAnalytics.error-resilience.test.tsx
 //
-// Verifies Hydration Stability, Exception Safety & Error Fallbacks for the
-// ReviewAnalytics component. Unexpected background-service interruptions or
-// server anomalies must never crash the page — they must be absorbed by a
-// localized error boundary that presents a clean recovery UI and routes the
-// exception to dev-telemetry trackers.
+// Verifies Hydration Stability, Exception Safety & Error Fallbacks for
+// ReviewAnalytics. Every failure scenario is driven through the component
+// itself via a configurable framer-motion mock, so the tests exercise the
+// real render path rather than standalone stub components.
 
-import React, { Component, type ReactNode } from 'react';
-import { render, screen } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import React, { Component, type ErrorInfo, type ReactNode } from 'react';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { renderToString } from 'react-dom/server';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PRInsightData } from '@/services/github/pr-insights';
 import ReviewAnalytics from './ReviewAnalytics';
 
 // ---------------------------------------------------------------------------
-// Stub framer-motion so animation wrappers render as plain divs in JSDOM.
+// Configurable runtime state — vi.hoisted() ensures this object is created
+// before any vi.mock() factory runs, so the factory closure can safely
+// reference it at module-evaluation time.
+// ---------------------------------------------------------------------------
+const motionRuntime = vi.hoisted(() => ({
+  shouldThrow: false,
+  errorMessage: 'Simulated animation runtime failure',
+}));
+
+// ---------------------------------------------------------------------------
+// Configurable framer-motion mock.
+// When motionRuntime.shouldThrow is true the motion.div wrapper throws,
+// causing ReviewAnalytics itself to be the source of the error — exactly
+// what a real background-service outage would look like in production.
 // ---------------------------------------------------------------------------
 vi.mock('framer-motion', () => ({
   motion: {
-    div: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-      <div {...props}>{children}</div>
-    ),
+    div: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => {
+      if (motionRuntime.shouldThrow) {
+        throw new Error(motionRuntime.errorMessage);
+      }
+      return <div {...props}>{children}</div>;
+    },
   },
 }));
 
 // ---------------------------------------------------------------------------
-// Typed error-boundary fixture used across every test in this suite.
-// The onError callback acts as a stand-in for a real telemetry tracker
-// (e.g. Sentry, Datadog, or a custom logging endpoint) so we can assert
-// that exceptions are forwarded to the observability layer without wiring
-// up a live SDK.
+// Typed error boundary.
+// onTelemetry mirrors the signature used in componentDidCatch so callers
+// can spy on both the Error and the React ErrorInfo (component stack).
 // ---------------------------------------------------------------------------
 interface BoundaryState {
   caught: boolean;
@@ -37,24 +51,20 @@ interface BoundaryState {
 
 interface BoundaryProps {
   children: ReactNode;
-  /** Optional telemetry callback — passed the thrown Error so callers can spy on it. */
-  onError?: (err: Error) => void;
+  onTelemetry?: (error: Error, info: ErrorInfo) => void;
 }
 
 class TestErrorBoundary extends Component<BoundaryProps, BoundaryState> {
   state: BoundaryState = { caught: false, error: null };
 
   static getDerivedStateFromError(error: Error): BoundaryState {
-    // React calls this synchronously before the next render so the fallback
-    // UI is shown instead of the broken subtree.
     return { caught: true, error };
   }
 
-  componentDidCatch(error: Error): void {
-    // Forward the exception to any registered telemetry tracker. In
-    // production this would be replaced by Sentry.captureException() or an
-    // equivalent SDK call.
-    this.props.onError?.(error);
+  componentDidCatch(error: Error, info: ErrorInfo): void {
+    // In production this call would be replaced by Sentry.captureException()
+    // or an equivalent observability SDK.
+    this.props.onTelemetry?.(error, info);
   }
 
   render(): ReactNode {
@@ -74,8 +84,7 @@ class TestErrorBoundary extends Component<BoundaryProps, BoundaryState> {
 }
 
 // ---------------------------------------------------------------------------
-// Shared valid data fixture — satisfies PRInsightData so TypeScript is
-// happy, but individual tests may override specific fields to inject faults.
+// Shared valid data fixture.
 // ---------------------------------------------------------------------------
 const baseData: PRInsightData = {
   totalPRs: 40,
@@ -99,162 +108,175 @@ const baseData: PRInsightData = {
 };
 
 // ---------------------------------------------------------------------------
-// Suppress React's own console.error noise for intentional-crash tests so
-// the Vitest output stays readable. Restore after each test to prevent
-// cross-test leakage.
+// Global setup — runs before / after every test.
 // ---------------------------------------------------------------------------
 let errorSpy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
+  // Reset the configurable motion runtime to its safe default so no state
+  // leaks from one test into the next.
+  motionRuntime.shouldThrow = false;
+  motionRuntime.errorMessage = 'Simulated animation runtime failure';
+
+  // Suppress React's built-in error boundary console.error output so the
+  // Vitest reporter stays readable during intentional-crash tests.
   errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
 afterEach(() => {
   errorSpy.mockRestore();
+  vi.clearAllMocks();
 });
 
 // ---------------------------------------------------------------------------
 // Test Suite
 // ---------------------------------------------------------------------------
 describe('ReviewAnalytics — Hydration Stability, Exception Safety & Error Fallbacks', () => {
-  // Test 1: Mock nested child properties to throw unexpected runtime
-  // exceptions or database-connectivity errors.
+  // -------------------------------------------------------------------------
+  // Test 1: Boundary catches a runtime exception that originates inside
+  // ReviewAnalytics itself (via the motion.div mock) and prevents a crash.
   //
-  // Why: When a background service returns a corrupted payload (e.g. null
-  // where .toFixed() is called), the component must not propagate the JS
-  // exception to the React root. The boundary proves the fault is localised.
-  it('Test 1: boundary catches exception from corrupted payload and prevents a page crash', () => {
-    // Simulate a downstream service returning null where .toFixed() is called
-    // — triggers a TypeError that mimics a real DB or API failure.
-    const corruptedData = {
-      ...baseData,
-      fastestReview: null as unknown as number,
-      slowestReview: undefined as unknown as number,
-    };
+  // Why: Confirms that when an animation dependency breaks mid-render the
+  // error boundary absorbs the fault and routes it to the telemetry layer
+  // before anything reaches the React root.
+  // -------------------------------------------------------------------------
+  it('Test 1: boundary catches exception inside ReviewAnalytics and prevents page crash', () => {
+    motionRuntime.shouldThrow = true;
+    motionRuntime.errorMessage = '503 Service Unavailable';
 
     const telemetry = vi.fn();
 
     render(
-      <TestErrorBoundary onError={telemetry}>
-        <ReviewAnalytics data={corruptedData} />
+      <TestErrorBoundary onTelemetry={telemetry}>
+        <ReviewAnalytics data={baseData} />
       </TestErrorBoundary>
     );
 
-    // The recovery panel must surface instead of a blank/broken DOM.
-    expect(screen.getByTestId('error-recovery-panel')).toBeDefined();
-    expect(screen.getByText('Something went wrong.')).toBeDefined();
+    expect(screen.getByTestId('error-recovery-panel')).toBeInTheDocument();
+    expect(screen.getByText('Something went wrong.')).toBeInTheDocument();
 
-    // The exception must have been forwarded to the telemetry layer.
+    // Telemetry must receive the error exactly once.
     expect(telemetry).toHaveBeenCalledOnce();
     expect(telemetry.mock.calls[0][0]).toBeInstanceOf(Error);
+    expect(telemetry.mock.calls[0][0].message).toBe('503 Service Unavailable');
   });
 
-  // Test 2: Encase execution calls in localized boundary elements.
+  // -------------------------------------------------------------------------
+  // Test 2: Healthy-path — boundary is transparent; SSR and CSR agree.
   //
-  // Why: An error boundary must absorb failures without letting them bubble
-  // past its render scope. This test verifies the boundary is transparent
-  // (invisible) under normal operating conditions so it does not break
-  // valid renders.
-  it('Test 2: boundary element is transparent when the component renders without fault', () => {
+  // Why: Verifies the component is hydration-stable: the server-rendered
+  // HTML already contains the metric content, so the client-side React
+  // tree can hydrate over it without a mismatch. Also confirms the boundary
+  // wrapper does not alter the DOM when no error occurs.
+  // -------------------------------------------------------------------------
+  it('Test 2: boundary is transparent on healthy path; SSR and CSR renders agree', () => {
+    // Server-side render — motionRuntime.shouldThrow is false so motion.div
+    // renders a plain <div>, producing deterministic HTML.
+    const html = renderToString(<ReviewAnalytics data={baseData} />);
+    expect(html).toContain('Review Analytics');
+    expect(html).toContain('Reviews Given');
+
+    // Client-side render through the boundary — all four metric cards must
+    // be visible and the fallback must be absent.
     render(
       <TestErrorBoundary>
         <ReviewAnalytics data={baseData} />
       </TestErrorBoundary>
     );
 
-    // The four metric cards must all be visible through the boundary.
+    expect(screen.getByText('Review Analytics')).toBeInTheDocument();
     expect(screen.getByText('Reviews Given')).toBeInTheDocument();
     expect(screen.getByText('Reviews Received')).toBeInTheDocument();
     expect(screen.getByText('Fastest Review')).toBeInTheDocument();
     expect(screen.getByText('Slowest Review')).toBeInTheDocument();
-
-    // The fallback UI must NOT be shown when there is no error.
-    expect(screen.queryByTestId('error-recovery-panel')).toBeNull();
+    expect(screen.queryByTestId('error-recovery-panel')).not.toBeInTheDocument();
   });
 
-  // Test 3: Assert that target modules render a clean error recovery UI
-  // instead of crashing the site.
+  // -------------------------------------------------------------------------
+  // Test 3: Renders a clean error recovery UI with role="alert".
   //
-  // Why: A component that always throws simulates the worst-case scenario:
-  // an unhandled exception from a nested dependency (e.g. a chart library
-  // calling a method that does not exist on a stub). The boundary must swap
-  // in a styled fallback so end users see a recovery panel, not a white page.
-  it('Test 3: renders a clean error recovery UI with role="alert" when a child throws', () => {
-    // Models a dependency that explodes when an external service is lost.
-    const BrokenReviewChild = () => {
-      throw new Error('503 Service Unavailable — review analytics unreachable');
-    };
+  // Why: A real animation-layer outage must swap in a styled fallback panel
+  // instead of a blank/white page. The panel carries role="alert" so
+  // screen-readers announce the failure without user interaction.
+  // -------------------------------------------------------------------------
+  it('Test 3: renders clean error recovery UI with role="alert" when analytics throws', () => {
+    motionRuntime.shouldThrow = true;
+    motionRuntime.errorMessage = '503 Service Unavailable — review analytics unreachable';
 
     render(
       <TestErrorBoundary>
-        <BrokenReviewChild />
+        <ReviewAnalytics data={baseData} />
       </TestErrorBoundary>
     );
 
-    // The recovery panel must carry role="alert" for assistive technologies.
     const panel = screen.getByRole('alert');
-    expect(panel).toBeDefined();
+    expect(panel).toBeInTheDocument();
     expect(panel).toHaveAttribute('data-testid', 'error-recovery-panel');
-
-    // A meaningful human-readable message must be shown.
     expect(screen.getByText('The review analytics panel failed to load.')).toBeInTheDocument();
   });
 
-  // Test 4: Verify exceptions are logged to dev-telemetry trackers
-  // appropriately.
+  // -------------------------------------------------------------------------
+  // Test 4: Exception message is faithfully forwarded to the telemetry layer.
   //
-  // Why: Silent failures are worse than visible ones. Every exception that
-  // reaches the boundary must be forwarded to the telemetry layer so on-call
-  // engineers can diagnose production anomalies without waiting for a user
-  // report. The test spies on onError and validates exact error propagation.
-  it('Test 4: exceptions are forwarded to the telemetry callback with the correct message', () => {
-    const telemetry = vi.fn();
-    const DB_ERROR_MSG = 'MongoDB connection pool exhausted';
+  // Why: Silent failures are worse than visible ones. The exact error message
+  // (and the React component stack via ErrorInfo) must reach the observability
+  // layer so on-call engineers can diagnose without waiting for user reports.
+  // -------------------------------------------------------------------------
+  it('Test 4: telemetry receives the exact error message when ReviewAnalytics throws', () => {
+    const DB_ERROR = 'MongoDB connection pool exhausted';
+    motionRuntime.shouldThrow = true;
+    motionRuntime.errorMessage = DB_ERROR;
 
-    const DatabaseFailureChild = () => {
-      throw new Error(DB_ERROR_MSG);
-    };
+    const telemetry = vi.fn();
 
     render(
-      <TestErrorBoundary onError={telemetry}>
-        <DatabaseFailureChild />
+      <TestErrorBoundary onTelemetry={telemetry}>
+        <ReviewAnalytics data={baseData} />
       </TestErrorBoundary>
     );
 
-    // onError must be called exactly once per error event.
+    // onTelemetry must be called exactly once — no duplicate reporting.
     expect(telemetry).toHaveBeenCalledOnce();
 
-    // The propagated error must carry the original message so log
-    // aggregators can group and alert on it correctly.
-    const receivedError: Error = telemetry.mock.calls[0][0];
+    const [receivedError, receivedInfo] = telemetry.mock.calls[0] as [Error, ErrorInfo];
     expect(receivedError).toBeInstanceOf(Error);
-    expect(receivedError.message).toBe(DB_ERROR_MSG);
+    expect(receivedError.message).toBe(DB_ERROR);
+
+    // The React component stack lets engineers trace the failure site.
+    expect(receivedInfo.componentStack).toContain('ReviewAnalytics');
   });
 
-  // Test 5: Ensure user reset/reload paths are available on recovery panels.
+  // -------------------------------------------------------------------------
+  // Test 5: Reload button restores widget content after a runtime failure.
   //
-  // Why: An error state with no escape route is a dead end for users. The
-  // recovery panel must always expose a "Reload Panel" button so users can
-  // attempt recovery without a full page refresh, reducing the support
-  // burden of users hard-reloading the entire dashboard for a single widget.
-  it('Test 5: recovery panel exposes a reload button reachable by assistive technologies', () => {
-    const AlwaysBroken = () => {
-      throw new Error('Simulated background service interruption');
-    };
+  // Why: An error state with no escape route is a dead end. The recovery
+  // panel must expose a "Reload Panel" button that resets the boundary,
+  // allowing ReviewAnalytics to remount without a full page refresh once the
+  // dependency has recovered.
+  // -------------------------------------------------------------------------
+  it('Test 5: reload button restores widget content after a simulated runtime failure', () => {
+    motionRuntime.shouldThrow = true;
 
     render(
       <TestErrorBoundary>
-        <AlwaysBroken />
+        <ReviewAnalytics data={baseData} />
       </TestErrorBoundary>
     );
 
-    // The recovery panel must be in the DOM.
+    // Phase 1 — error state: recovery panel and reload button are visible.
     expect(screen.getByTestId('error-recovery-panel')).toBeInTheDocument();
-
-    // The button must be discoverable via accessible role query — not just by
-    // class name or data-testid — so keyboard and screen-reader users can
-    // invoke it without needing a pointing device.
     const reloadBtn = screen.getByRole('button', { name: /reload panel/i });
     expect(reloadBtn).toBeInTheDocument();
+
+    // Simulate the dependency recovering before the user clicks Reload.
+    motionRuntime.shouldThrow = false;
+
+    // Phase 2 — user clicks Reload: boundary resets and ReviewAnalytics
+    // remounts successfully with motion.div no longer throwing.
+    fireEvent.click(reloadBtn);
+
+    expect(screen.queryByTestId('error-recovery-panel')).not.toBeInTheDocument();
+    expect(screen.getByText('Review Analytics')).toBeInTheDocument();
+    expect(screen.getByText('Reviews Given')).toBeInTheDocument();
   });
 });
