@@ -68,7 +68,7 @@ describe('ThemeSelector - TypeScript Compiler Validation & Schema Constraints St
 
   it('5. Type stability: verifies unions, enums, readonly fields, nullable values, and generic types compile correctly', () => {
     // ThemeKey represents the actual concrete themes
-    expectTypeOf<ThemeKey>().toBeString();
+    expectTypeOf<ThemeKey>().toMatchTypeOf<string>();
     expectTypeOf<'light'>().toMatchTypeOf<ThemeKey>();
     expectTypeOf<'dark'>().toMatchTypeOf<ThemeKey>();
 
