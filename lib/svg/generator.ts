@@ -2,6 +2,7 @@
 
 import type {
   BadgeParams,
+  BadgeTheme,
   ContributionCalendar,
   StreakStats,
   MonthlyStats,
@@ -52,7 +53,29 @@ const FONT_MAP = {
   space: '"Space Grotesk", sans-serif',
 } as const;
 
-let currentBackgroundRectBorderAttrs = '';
+/**
+ * Reverse lookup: background hex color -> theme.
+ *
+ * Built once at module load instead of re-scanning `Object.values(themes)`
+ * with `.find()` on every `generateMonthlySVG` call (this function runs on
+ * every SVG render request). Lookups are now O(1) via Map.get().
+ *
+ * Multiple themes can share the same `bg` color (e.g. 'default'/'dark'/
+ * 'github' all use '0d1117'). To exactly preserve the original
+ * `Object.values(themes).find(...)` behavior — which returns the first
+ * match in object-insertion order — we only set a key if it isn't already
+ * present, so earlier-declared themes continue to win ties.
+ */
+const THEME_BY_BG: Map<string, BadgeTheme> = (() => {
+  const map = new Map<string, BadgeTheme>();
+  for (const theme of Object.values(themes)) {
+    const key = theme.bg.toLowerCase();
+    if (!map.has(key)) {
+      map.set(key, theme);
+    }
+  }
+  return map;
+})();
 
 export function resolveFont(sanitizedFont?: string | null): string | null {
   if (!sanitizedFont) return null;
@@ -87,7 +110,7 @@ export function getUsernameFontSize(username: string): number {
   if (len <= 12) return 18;
   return Math.max(10, 18 - (len - 12) * 0.5);
 }
-
+let currentBackgroundRectBorderAttrs = '';
 /**
  * Renders the foundational background rectangle for all SVG cards.
  * Maintains the 0.5px offset required for crisp SVG stroke rendering on standard DPI screens.
@@ -1301,9 +1324,7 @@ export function generateMonthlySVG(stats: MonthlyStats, params: BadgeParams): st
   const deltaText = computeDeltaText(stats, deltaUnit, params.delta_format);
   let negativeColor = '#ff4444';
   const cleanBg = sanitizeHexColor(params.bg, '0d1117');
-  const matchedTheme = Object.values(themes).find(
-    (t) => t.bg.toLowerCase() === cleanBg.toLowerCase()
-  );
+  const matchedTheme = THEME_BY_BG.get(cleanBg.toLowerCase());
 
   if (matchedTheme && matchedTheme.negative) {
     negativeColor = `#${matchedTheme.negative}`;
