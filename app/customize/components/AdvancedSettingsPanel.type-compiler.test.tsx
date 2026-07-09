@@ -3,6 +3,7 @@ import type { ComponentProps } from 'react';
 
 import { AdvancedSettingsPanel } from './AdvancedSettingsPanel';
 import type { ViewMode, DeltaFormat, Language, Timezone } from '../types';
+import react from 'react';
 
 type Props = ComponentProps<typeof AdvancedSettingsPanel>;
 
