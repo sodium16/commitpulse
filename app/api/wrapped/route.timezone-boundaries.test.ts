@@ -46,8 +46,14 @@ function makeRequest(params: Record<string, string> = {}): Request {
 }
 
 describe('Timezone normalization & calendar boundary alignment', () => {
-  vi.mocked(getWrappedData).mockResolvedValue(mockWrappedStats);
-  it('passes Asia/Kolkata timezone to getWrappedData', async () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    refreshPolicy.reset();
+    refreshRateLimiter.reset();
+    quotaMonitor.reset();
+    vi.mocked(getCircuitTelemetry).mockReturnValue({ isOpen: false, resetInMs: 0 });
+    vi.mocked(getWrappedData).mockResolvedValue(mockWrappedStats);
+  });
     await GET(
       makeRequest({
         user: 'octocat',
