@@ -144,6 +144,8 @@ Transform your GitHub contribution history into a cinematic 3D monolith.
 
 For all URL parameters and configuration possibilities (including grace periods, custom fonts, timezone overrides, versus comparison mode, heatmap view, LOC mode, and layout dimensions), check out the **[🎨 Customization Guide & Parameters](docs/customization.md)**.
 
+For advanced usage examples including custom gradient backgrounds, multi-user comparisons, organization dashboards, and custom date ranges, see the **[🚀 Advanced Usage Examples](docs/customization.md#-advanced-usage-examples)** section in the customization guide.
+
 ---
 
 ## ✨ Features

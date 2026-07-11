@@ -51,7 +51,7 @@ import { getClientIp } from '@/utils/getClientIp';
 import { quotaMonitor } from '@/services/github/quota-monitor';
 import { refreshPolicy } from '@/services/github/refresh-policy';
 import { refreshRateLimiter } from '@/services/github/refresh-rate-limiter';
-import { logger } from '@/lib/logger';
+import { logger, setRequestId, clearRequestId } from '@/lib/logger';
 
 import { validationCache as _vc, normalizeCacheKey, cachedValidation } from './validation-cache';
 // Re-alias so existing usages in this file continue to work.
@@ -88,12 +88,21 @@ function getMonthlyReferenceDate(year: string | undefined, timezone: string): Da
 }
 
 export async function GET(request: Request) {
+  const start = Date.now();
+  const requestId = request.headers.get('x-request-id') ?? crypto.randomUUID();
+  setRequestId(requestId);
+
   const { searchParams } = new URL(request.url);
 
   const cacheKey = normalizeCacheKey(searchParams);
   const parseResult = cachedValidation(cacheKey, () =>
     streakParamsSchema.safeParse(coerceQueryParams(searchParams))
   );
+  logger.info('Incoming streak request', {
+    source: 'streak',
+    user: parseResult.success ? parseResult.data.user : undefined,
+    view: parseResult.success ? parseResult.data.view : undefined,
+  });
   try {
     if (!parseResult.success) {
       const fieldErrors = parseResult.error.flatten();
@@ -109,6 +118,7 @@ export async function GET(request: Request) {
           'Content-Type': 'image/svg+xml',
           'Cache-Control': 'no-store',
           'Content-Security-Policy': SVG_CSP_HEADER,
+          'X-Request-ID': requestId,
         },
       });
     }
@@ -244,6 +254,11 @@ export async function GET(request: Request) {
           throw validationErr;
         }
         throw error;
+      } finally {
+        logger.info('Streak request completed', {
+          source: 'streak',
+        });
+        clearRequestId();
       }
     }
 
@@ -514,9 +529,16 @@ export async function GET(request: Request) {
         }
       }
     } finally {
+      logger.info('Streak request completed', {
+        source: 'streak',
+        user,
+        view: normalizedView,
+        format,
+        status: 200,
+        durationMs: Date.now() - start,
+      });
       clearTimeout(timeoutId);
     }
-
     if (normalizedView !== 'monthly') {
       let effectiveDays = days;
 
@@ -579,6 +601,7 @@ export async function GET(request: Request) {
             headers: {
               'Cache-Control': cacheControl,
               ETag: weakEtag,
+              'X-Request-ID': requestId,
             },
           });
         }
@@ -590,6 +613,7 @@ export async function GET(request: Request) {
           'Cache-Control': cacheControl,
           ETag: weakEtag,
           'X-Cache-Status': cacheStatusHeader,
+          'X-Request-ID': requestId,
         },
       });
     }
@@ -676,6 +700,7 @@ export async function GET(request: Request) {
           headers: {
             'Cache-Control': cacheControl,
             ETag: weakEtag,
+            'X-Request-ID': requestId,
           },
         });
       }
@@ -697,7 +722,8 @@ export async function GET(request: Request) {
           ETag: weakEtag,
           'X-Cache-Status': shouldBypassCache
             ? `BYPASS, fetched=${new Date().toISOString()}`
-            : 'HIT',
+            : `HIT, cached=${new Date().toISOString()}`,
+          'X-Request-ID': requestId,
         },
       });
     }
@@ -710,10 +736,11 @@ export async function GET(request: Request) {
         'X-CommitPulse-Grace-Applied': String(grace),
         ETag: weakEtag,
         'X-Cache-Status': shouldBypassCache ? `BYPASS, fetched=${new Date().toISOString()}` : 'HIT',
+        'X-Request-ID': requestId,
       },
     });
   } catch (error: unknown) {
-    return buildErrorResponse(error, parseResult);
+    return buildErrorResponse(error, parseResult, requestId);
   }
 }
 
@@ -748,7 +775,11 @@ function sanitizeErrorMessage(message: string): string {
   return 'Something went wrong. Please try again later.';
 }
 
-function buildErrorResponse(error: unknown, parseResult: ParseResult): NextResponse {
+function buildErrorResponse(
+  error: unknown,
+  parseResult: ParseResult,
+  requestId?: string
+): NextResponse {
   const rawMessage = error instanceof Error ? error.message : String(error);
   const message = sanitizeErrorMessage(rawMessage);
 
@@ -831,6 +862,9 @@ function buildErrorResponse(error: unknown, parseResult: ParseResult): NextRespo
       headers['X-CommitPulse-Circuit-Status'] = 'Open';
       headers['X-CommitPulse-Circuit-Reset-In'] = String(telemetry.resetInMs);
     }
+    if (requestId) {
+      headers['X-Request-ID'] = requestId;
+    }
 
     return new NextResponse(svg, {
       status: 429,
@@ -846,40 +880,51 @@ function buildErrorResponse(error: unknown, parseResult: ParseResult): NextRespo
     const badUsername = match?.[1] ?? match?.[2] ?? fallbackTarget;
 
     const svg = generateNotFoundSVG(badUsername, errBg, errAccent, errText, errRadius, errSpeed);
+    const errorHeaders: Record<string, string> = {
+      'Content-Type': 'image/svg+xml; charset=utf-8',
+      'Cache-Control': 'no-cache',
+      'Content-Security-Policy': SVG_CSP_HEADER,
+    };
+    if (requestId) {
+      errorHeaders['X-Request-ID'] = requestId;
+    }
     return new NextResponse(svg, {
       status: 404,
-      headers: {
-        'Content-Type': 'image/svg+xml; charset=utf-8',
-        'Cache-Control': 'no-cache',
-        'Content-Security-Policy': SVG_CSP_HEADER,
-      },
+      headers: errorHeaders,
     });
   }
 
   // 3. Return a 400 Bad Request for Validation Errors
   if (isValidationError) {
     const validationSvg = buildInlineErrorSVG(message);
-
+    const errorHeaders: Record<string, string> = {
+      'Content-Type': 'image/svg+xml; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'Content-Security-Policy': SVG_CSP_HEADER,
+    };
+    if (requestId) {
+      errorHeaders['X-Request-ID'] = requestId;
+    }
     return new NextResponse(validationSvg, {
       status: 400,
-      headers: {
-        'Content-Type': 'image/svg+xml; charset=utf-8',
-        'Cache-Control': 'no-store',
-        'Content-Security-Policy': SVG_CSP_HEADER,
-      },
+      headers: errorHeaders,
     });
   }
 
   // 4. Return a 504 Gateway Timeout for aborted/timed out requests
   if (isAbortError(error)) {
     const timeoutSvg = buildInlineErrorSVG('Request timed out. Please try again later.');
+    const errorHeaders: Record<string, string> = {
+      'Content-Type': 'image/svg+xml; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'Content-Security-Policy': SVG_CSP_HEADER,
+    };
+    if (requestId) {
+      errorHeaders['X-Request-ID'] = requestId;
+    }
     return new NextResponse(timeoutSvg, {
       status: 504,
-      headers: {
-        'Content-Type': 'image/svg+xml; charset=utf-8',
-        'Cache-Control': 'no-store',
-        'Content-Security-Policy': SVG_CSP_HEADER,
-      },
+      headers: errorHeaders,
     });
   }
 
@@ -890,13 +935,16 @@ function buildErrorResponse(error: unknown, parseResult: ParseResult): NextRespo
   });
 
   const errorSvg = buildInlineErrorSVG('Something went wrong. Please try again later.');
-
+  const errorHeaders: Record<string, string> = {
+    'Content-Type': 'image/svg+xml; charset=utf-8',
+    'Cache-Control': 'no-store',
+    'Content-Security-Policy': SVG_CSP_HEADER,
+  };
+  if (requestId) {
+    errorHeaders['X-Request-ID'] = requestId;
+  }
   return new NextResponse(errorSvg, {
     status: 500,
-    headers: {
-      'Content-Type': 'image/svg+xml; charset=utf-8',
-      'Cache-Control': 'no-store',
-      'Content-Security-Policy': SVG_CSP_HEADER,
-    },
+    headers: errorHeaders,
   });
 }
