@@ -108,12 +108,7 @@ export async function GET(request: Request) {
       entrance,
     } = parseResult.data;
     const normalizedView = view as
-      | 'default'
-      | 'monthly'
-      | 'heatmap'
-      | 'pulse'
-      | 'languages'
-      | 'constellation';
+      'default' | 'monthly' | 'heatmap' | 'pulse' | 'languages' | 'constellation';
     const themeName = theme || 'dark';
 
     // Treat either ?refresh=true or ?bypassCache=true as a cache-bypass request
