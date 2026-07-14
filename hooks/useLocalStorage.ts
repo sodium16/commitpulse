@@ -18,7 +18,7 @@ function readFromStorage<T>(key: string, initialValue: T): T {
 }
 
 export function useLocalStorage<T>(key: string, initialValue: T): readonly [T, (value: T) => void] {
-  const [storedValue, setStoredValue] = useState<T>(initialValue);
+  const [storedValue, setStoredValue] = useState<T>(() => readFromStorage(key, initialValue));
 
   // Re-sync when the key changes (e.g. component reused with a different key).
   // setState inside an effect is intentional here — we are synchronising React
