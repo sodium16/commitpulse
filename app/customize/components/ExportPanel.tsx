@@ -239,6 +239,7 @@ export function ExportPanel({
 
           {/* Centered High-Definition Vector Download Button */}
           <button
+            id="download-svg-btn"
             type="button"
             onClick={handleDownloadBadge}
             disabled={!hasUsername || isDownloading || format === 'action'}
