@@ -2,7 +2,6 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import React from 'react';
-
 import { ThemeQuickPresets } from './ThemeQuickPresets';
 
 // Silence React error output during error-boundary tests
