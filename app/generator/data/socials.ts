@@ -286,6 +286,16 @@ export const SOCIALS: Social[] = [
     baseUrl: 'https://codesandbox.io/u/',
     placeholder: 'e.g. https://codesandbox.io/u/yourusername',
   },
+  {
+    id: 'wakatime',
+    name: 'WakaTime',
+    category: 'Developer',
+    iconUrl: SI('wakatime'),
+    type: 'simpleicon',
+    siSlug: 'wakatime',
+    baseUrl: 'https://wakatime.com/@',
+    placeholder: 'e.g. https://wakatime.com/@yourusername',
+  },
 
   {
     id: 'leetcode',
