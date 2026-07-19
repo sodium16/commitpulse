@@ -62,11 +62,9 @@ describe('GET /api/pr-insights - Error Resilience', () => {
   });
 
   it('2. recovers gracefully and returns a 500 status when internal properties throw a nested runtime exception (Exception Safety & Fallbacks)', async () => {
-    vi.mocked(fetchPRInsights).mockImplementation(
-      (username: string, token?: string, signal?: AbortSignal): Promise<PRInsightData> => {
-        throw new TypeError("Cannot read properties of undefined (reading 'prs')");
-      }
-    );
+    vi.mocked(fetchPRInsights).mockImplementation((): Promise<PRInsightData> => {
+      throw new TypeError("Cannot read properties of undefined (reading 'prs')");
+    });
 
     const response = await GET(makeRequest());
     expect(response.status).toBe(500);
