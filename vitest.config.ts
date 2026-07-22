@@ -27,9 +27,9 @@ export default defineConfig({
         ? []
         : ['**/*.massive-scaling.test.ts', '**/*.massive-scaling.test.tsx']),
     ],
-    maxWorkers: process.env.CI ? 4 : Math.max(1, Math.floor(os.cpus().length / 2)),
+    maxWorkers: process.env.CI ? 2 : Math.max(1, Math.floor(os.cpus().length / 2)),
     testTimeout: 30000,
-    pool: process.env.CI ? 'threads' : 'forks',
+    pool: 'forks',
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
