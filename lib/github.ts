@@ -1000,7 +1000,9 @@ export async function fetchGitHubContributions(
 
   try {
     const result = await coalescedLoad();
-    await contributionsCache.set(key, { data: result, fetchedAt: Date.now() }, LONG_CACHE_TTL);
+    if (!options.bypassCache || options.forceRefresh) {
+      await contributionsCache.set(key, { data: result, fetchedAt: Date.now() }, LONG_CACHE_TTL);
+    }
     return result;
   } catch (err: unknown) {
     if (shouldFallbackOnError(err)) {

@@ -717,11 +717,12 @@ export async function GET(request: Request) {
     const secondsToMidnight = tzParam
       ? getSecondsUntilMidnightInTimezone(timezone)
       : getSecondsUntilUTCMidnight();
+    const isPngRoute = request.url.includes('/api/streak/png') || format === 'png';
     const cacheControl = isRefreshRequested
       ? 'no-cache, no-store, must-revalidate'
       : isHistoricalYear
         ? 'public, max-age=31536000, s-maxage=31536000, immutable'
-        : format === 'png'
+        : isPngRoute
           ? `public, max-age=60, s-maxage=${secondsToMidnight}, stale-while-revalidate=59`
           : 'public, max-age=300, stale-while-revalidate=3600';
 
