@@ -612,7 +612,12 @@ type FetchOptions = {
 
 export const GITHUB_CACHE_TTL_MS = Number(process.env.GITHUB_CACHE_TTL_MS ?? String(5 * 60 * 1000));
 
-export const contributionsCache = new DistributedCache<ExtendedContributionData>(1000);
+export interface CachedContributions {
+  data: ExtendedContributionData;
+  fetchedAt: number;
+}
+
+export const contributionsCache = new DistributedCache<CachedContributions>(1000);
 const profileCache = new DistributedCache<GitHubUserProfile>(1000);
 const reposCache = new DistributedCache<GitHubRepo[]>(500);
 const contributedReposCache = new DistributedCache<ContributedRepo[]>(500);
@@ -901,13 +906,6 @@ export async function fetchGitHubContributions(
     process.env.GITHUB_LONG_CACHE_TTL_MS ?? String(7 * 24 * 60 * 60 * 1000)
   );
 
-  const shouldFetch = (cached: ExtendedContributionData) => {
-    const now = Date.now();
-    return cached?.calendar.lastSyncedAt
-      ? now - new Date(cached.calendar.lastSyncedAt).getTime() > GITHUB_CACHE_TTL_MS
-      : true;
-  };
-
   const loadWithTimeout = async (): Promise<ExtendedContributionData> => {
     const controller = new AbortController();
     if (options.signal) {
@@ -962,83 +960,48 @@ export async function fetchGitHubContributions(
     return pending;
   };
 
-  if (options.signal) {
-    if (options.bypassCache || options.forceRefresh) {
-      try {
-        return await loadWithTimeout();
-      } catch (err: unknown) {
-        if (shouldFallbackOnError(err)) {
-          const staleData = await contributionsCache.get(key);
-          if (staleData) {
-            logger.warn('GitHub API fetch failed, falling back to stale cache', {
-              component: 'GitHub API',
-              username,
-              error: err,
-            });
-            return {
-              ...staleData,
-              isOfflineFallback: true,
-            };
-          }
-          return getMockContributions();
-        }
-        throw err;
-      }
+  const revalidateInBackground = (username: string, cacheKey: string) => {
+    const quota = quotaMonitor.getQuota();
+    if (quota.remaining < 100) {
+      logger.warn('Background revalidation paused due to low GitHub API quota', {
+        username,
+        remaining: quota.remaining,
+      });
+      return;
     }
-    const cached = await contributionsCache.get(key);
-    if (cached !== null && !shouldFetch(cached)) {
-      return cached;
-    }
-    try {
-      return await loadWithTimeout();
-    } catch (err: unknown) {
-      if (shouldFallbackOnError(err)) {
-        const staleData = await contributionsCache.get(key);
-        if (staleData) {
-          logger.warn('GitHub API fetch failed, falling back to stale cache', {
-            component: 'GitHub API',
-            username,
-            error: err,
-          });
-          return {
-            ...staleData,
-            isOfflineFallback: true,
-          };
-        }
-        return getMockContributions();
-      }
-      throw err;
-    }
-  }
 
-  if (options.bypassCache || options.forceRefresh) {
-    try {
-      const result = await coalescedLoad();
-      if (options.forceRefresh) {
-        await contributionsCache.set(key, result, LONG_CACHE_TTL);
+    (async () => {
+      try {
+        const fresh = await coalescedLoad();
+        await contributionsCache.set(
+          cacheKey,
+          { data: fresh, fetchedAt: Date.now() },
+          LONG_CACHE_TTL
+        );
+      } catch (err: unknown) {
+        logger.error('Background revalidation failed', { username, error: err });
       }
-      return result;
-    } catch (err: unknown) {
-      if (shouldFallbackOnError(err)) {
-        const staleData = await contributionsCache.get(key);
-        if (staleData) {
-          console.warn(
-            `[GitHub API] Fetch failed or timed out for "${username}", falling back to stale cache:`,
-            err
-          );
-          return {
-            ...staleData,
-            isOfflineFallback: true,
-          };
-        }
-        return getMockContributions();
+    })();
+  };
+
+  if (!options.bypassCache && !options.forceRefresh) {
+    const cached = await contributionsCache.get(key);
+    if (cached) {
+      const age = Date.now() - cached.fetchedAt;
+      if (age < 60000) {
+        return cached.data;
       }
-      throw err;
+      if (age < 3600000) {
+        revalidateInBackground(username, key);
+        return cached.data;
+      }
     }
   }
 
   try {
-    return await contributionsCache.getOrSet(key, coalescedLoad, LONG_CACHE_TTL, shouldFetch);
+    const result = await coalescedLoad();
+    await contributionsCache.set(key, { data: result, fetchedAt: Date.now() }, LONG_CACHE_TTL);
+    return result;
   } catch (err: unknown) {
     if (shouldFallbackOnError(err)) {
       const staleData = await contributionsCache.get(key);
@@ -1049,7 +1012,7 @@ export async function fetchGitHubContributions(
           error: err,
         });
         return {
-          ...staleData,
+          ...staleData.data,
           isOfflineFallback: true,
         };
       }

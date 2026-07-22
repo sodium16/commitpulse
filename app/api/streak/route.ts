@@ -721,7 +721,9 @@ export async function GET(request: Request) {
       ? 'no-cache, no-store, must-revalidate'
       : isHistoricalYear
         ? 'public, max-age=31536000, s-maxage=31536000, immutable'
-        : `public, max-age=60, s-maxage=${secondsToMidnight}, stale-while-revalidate=59`;
+        : format === 'png'
+          ? `public, max-age=60, s-maxage=${secondsToMidnight}, stale-while-revalidate=59`
+          : 'public, max-age=300, stale-while-revalidate=3600';
 
     const etag = crypto.createHash('sha256').update(svg).digest('hex');
     const weakEtag = `W/"${etag}"`;
