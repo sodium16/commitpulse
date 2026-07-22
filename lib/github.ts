@@ -2899,6 +2899,140 @@ export async function fetchCommitHourDistribution(
   return hourCounts;
 }
 
+export async function fetchCommitPunchCard(
+  username: string,
+  token?: string,
+  timezone: string = 'UTC'
+): Promise<number[][]> {
+  // 7 days (Mon-Sun), 24 hours
+  const punchCard: number[][] = Array.from({ length: 7 }, () => new Array(24).fill(0));
+
+  const getDayAndHourInTimezone = (isoDate: string, tz: string): { day: number; hour: number } => {
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: tz,
+        weekday: 'short',
+        hour: 'numeric',
+        hour12: false,
+        hourCycle: 'h23',
+      }).formatToParts(new Date(isoDate));
+
+      const hourPart = parts.find((p) => p.type === 'hour')?.value;
+      const hour = hourPart ? parseInt(hourPart, 10) % 24 : new Date(isoDate).getUTCHours();
+
+      const weekdayPart = parts.find((p) => p.type === 'weekday')?.value;
+      // Map to 0-6 where 0 = Monday, 6 = Sunday
+      const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      let day = days.indexOf(weekdayPart ?? 'Mon');
+      if (day === -1) {
+        const utcDay = new Date(isoDate).getUTCDay();
+        day = utcDay === 0 ? 6 : utcDay - 1;
+      }
+
+      return { day, hour };
+    } catch {
+      const d = new Date(isoDate);
+      const utcDay = d.getUTCDay();
+      return {
+        day: utcDay === 0 ? 6 : utcDay - 1,
+        hour: d.getUTCHours(),
+      };
+    }
+  };
+
+  const query = `
+    query($login: String!) {
+      user(login: $login) {
+        contributionsCollection {
+          commitContributionsByRepository(maxRepositories: 5) {
+            repository {
+              name
+              owner { login }
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  let topRepos: { owner: string; name: string }[] = [];
+  try {
+    const res = await fetchGraphQLWithRetry(
+      GITHUB_GRAPHQL_URL,
+      {
+        method: 'POST',
+        headers: getHeaders(token),
+        body: JSON.stringify({ query, variables: { login: username } }),
+        cache: 'no-store',
+      },
+      0,
+      undefined,
+      token
+    );
+    if (res.ok) {
+      const data = await res.json();
+      const repos =
+        data?.data?.user?.contributionsCollection?.commitContributionsByRepository ?? [];
+      topRepos = repos.map((r: { repository: { owner: { login: string }; name: string } }) => ({
+        owner: r.repository.owner.login,
+        name: r.repository.name,
+      }));
+    }
+  } catch {
+    // silent
+  }
+
+  if (topRepos.length === 0) return punchCard;
+
+  const commitQuery = `
+    query($owner: String!, $name: String!) {
+      repository(owner: $owner, name: $name) {
+        defaultBranchRef {
+          target {
+            ... on Commit {
+              history(first: 100) {
+                nodes {
+                  committedDate
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  await runCappedConcurrency(topRepos, 3, async ({ owner, name }) => {
+    try {
+      const res = await fetchGraphQLWithRetry(
+        GITHUB_GRAPHQL_URL,
+        {
+          method: 'POST',
+          headers: getHeaders(token),
+          body: JSON.stringify({ query: commitQuery, variables: { owner, name } }),
+          cache: 'no-store',
+        },
+        0,
+        undefined,
+        token
+      );
+      if (!res.ok) return null;
+      const data = await res.json();
+      const nodes: { committedDate: string }[] =
+        data?.data?.repository?.defaultBranchRef?.target?.history?.nodes ?? [];
+      for (const node of nodes) {
+        const { day, hour } = getDayAndHourInTimezone(node.committedDate, timezone);
+        punchCard[day][hour]++;
+      }
+    } catch {
+      // skip
+    }
+    return null;
+  });
+
+  return punchCard;
+}
+
 export async function runCappedConcurrency<T, R>(
   items: T[],
   limit: number,

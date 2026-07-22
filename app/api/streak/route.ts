@@ -7,6 +7,7 @@ import {
   getOrgDashboardData,
   getCircuitTelemetry,
   fetchCommitHourDistribution,
+  fetchCommitPunchCard,
   isAbortError,
 } from '@/lib/github';
 import {
@@ -36,6 +37,7 @@ import { generateRadarSVG } from '@/lib/svg/radar';
 import { generateDoughnutSVG } from '@/lib/svg/doughnut';
 import { generateCommitClockSVG } from '@/lib/svg/commitClock';
 import { generateWeekdaySVG } from '@/lib/svg/weekday';
+import { generatePunchcardSVG } from '@/lib/svg/punchcard';
 import { injectStaleWatermark } from '@/lib/svg/staleWatermark';
 import { optimizeSVG } from '@/lib/svg/optimizer';
 import { getSecondsUntilUTCMidnight, getSecondsUntilMidnightInTimezone } from '@/utils/time';
@@ -200,7 +202,8 @@ export async function GET(request: Request) {
       | 'pie'
       | 'activity_graph'
       | 'commit_clock'
-      | 'weekday';
+      | 'weekday'
+      | 'punchcard';
     const themeKey = getNormalizedThemeKey(theme);
     const themeName = themeKey === 'default' && theme ? theme : themeKey;
 
@@ -687,6 +690,11 @@ export async function GET(request: Request) {
         new Array(24).fill(0)
       );
       svg = generateCommitClockSVG(hourCounts, fullStats, params);
+    } else if (normalizedView === 'punchcard') {
+      const punchCard = await fetchCommitPunchCard(user, undefined, timezone).catch(() =>
+        Array.from({ length: 7 }, () => new Array(24).fill(0))
+      );
+      svg = generatePunchcardSVG(punchCard, fullStats, params);
     } else if (normalizedView === 'weekday') {
       const normalizedCalendar = normalizeCalendarToTimezone(calendar, timezone);
       svg = generateWeekdaySVG(fullWeekdayStats || fullStats, params, normalizedCalendar);
