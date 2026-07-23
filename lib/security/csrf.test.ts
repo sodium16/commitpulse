@@ -25,6 +25,8 @@ describe('validateCSRF', () => {
 
   it('rejects requests with no origin and no referer', () => {
     const req = new Request('https://commitpulse.vercel.app/api/test', { method: 'POST' });
+    req.headers.delete('origin');
+    req.headers.delete('referer');
     const res = validateCSRF(req);
     expect(res).not.toBeNull();
     expect(res!.status).toBe(403);
