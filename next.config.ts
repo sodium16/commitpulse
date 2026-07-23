@@ -2,6 +2,7 @@ import withSerwist from '@serwist/next';
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
   serverExternalPackages: ['next/og', '@resvg/resvg-js'],
   allowedDevOrigins: process.env.NEXT_ALLOWED_DEV_ORIGINS
     ? process.env.NEXT_ALLOWED_DEV_ORIGINS.split(',')
