@@ -577,7 +577,7 @@ export async function GET(request: Request) {
         const filteredDays = allDays.slice(-effectiveDays);
         calendar = {
           totalContributions: filteredDays.reduce((sum, d) => sum + d.contributionCount, 0),
-          weeks: chunkDaysIntoWeeks(filteredDays),
+          weeks: chunkDaysIntoWeeks(filteredDays, hide_weekend), // ← ADD hide_weekend
         };
 
         if (versusCalendar) {
